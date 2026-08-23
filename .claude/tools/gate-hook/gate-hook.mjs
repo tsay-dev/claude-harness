@@ -127,9 +127,9 @@ function specStatus(dir) {
 	return { status: parseFrontmatter(readFileSync(p, "utf8"))["ステータス"] || null };
 }
 
-//  契約（OpenAPI yaml）の x-status をトップレベル行スキャンで読む
+//  契約（境界契約 yaml）の x-status をトップレベル行スキャンで読む
 function contractStatus(dir) {
-	const p = join(dir, "api-contract.yaml");
+	const p = join(dir, "contract.yaml");
 	if (!existsSync(p)) return null;
 	const m = readFileSync(p, "utf8").match(/^x-status:\s*([\w-]+)/m);
 	return { status: m ? m[1] : null };
@@ -213,7 +213,7 @@ function main() {
 			problems.push(`${r.id}: spec が fixed でない（現在 ${spec.status ?? "不明"}）→ Phase 1`);
 		const contract = dir ? contractStatus(dir) : null;
 		if (!contract)
-			problems.push(`${r.id}: 契約（同ディレクトリの api-contract.yaml）が存在しない → Phase 3`);
+			problems.push(`${r.id}: 契約（同ディレクトリの contract.yaml）が存在しない → Phase 3`);
 		else if (contract.status !== "fixed")
 			problems.push(
 				`${r.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ Phase 3（fixed 化は structure-oracle 不整合ゼロ後に orchestrator が行う）`,
