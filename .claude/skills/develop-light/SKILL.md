@@ -69,7 +69,7 @@ Identical to the mainline (the format SSOT is `.claude/templates/develop/`).
 | --- | --- | --- |
 | Feature ledger | `docs/specs/specs.md` | `ssot-definer`; the phase column by the orchestrator |
 | Feature spec (behavior) + GWT | `docs/specs/F-xxx-<slug>/spec.md` | `ssot-definer` |
-| Interface contract (shape of the boundary) | `docs/specs/F-xxx-<slug>/api-contract.yaml` | `contract-author` |
+| Boundary contract (the shape of what crosses the boundary) | `docs/specs/F-xxx-<slug>/contract.yaml` | `contract-author` |
 | Shared contract vocabulary | `docs/specs/_shared/components.yaml` | **orchestrator only** |
 | DB design | the location the framework/project defines (absent that, `docs/db/schema.md`) | `db-designer` (only when it changes) |
 | ADR | `docs/adr/` | `adr-writer` (when a decision occurs) |
@@ -88,8 +88,8 @@ Identical to the mainline (the format SSOT is `.claude/templates/develop/`).
    ```bash
    node .claude/tools/spec-lint/spec-lint.mjs validate
    ```
-   For OpenAPI syntax validation of the contract, the producer or the orchestrator runs something like `npx -y @redocly/cli lint <api-contract.yaml>` if available (if not, report that spec-lint's coverage suffices).
-5. Once lint passes, **the orchestrator** sets `x-status` in `api-contract.yaml` to `fixed` (no human approval in between; never let a producer mark it `fixed`).
+   The contract's conformance is decided in full by `node .claude/tools/spec-lint/spec-lint.mjs validate` (it parses the contract structurally — no external validator is involved, and none is needed).
+5. Once lint passes, **the orchestrator** sets `x-status` in `contract.yaml` to `fixed` (no human approval in between; never let a producer mark it `fixed`).
 6. On lint failure, send all findings back in a single round to `contract-author` (or to the SSOT / DB if that is the cause).
 
 **Not launched**: `skeleton-runner`, `structure-oracle`.
@@ -120,7 +120,7 @@ Confirm before touching implementation, DB, or contract code. Return points when
 | --- | --- | --- |
 | 1 | Is it listed in the ledger? | Phase1 |
 | 2 | Is the target `spec.md` `fixed`? | Phase1 (only that feature's spec) |
-| 3 | Is `api-contract.yaml` `fixed`? | Phase3 |
+| 3 | Is `contract.yaml` `fixed`? | Phase3 |
 
 Excuses like "it's a small CRUD" are rejected. If all you want is lower cost, you are already in light — and if the work does not qualify, go to the mainline.
 

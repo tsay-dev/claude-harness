@@ -34,9 +34,9 @@ You may vary the steps and the granularity, but never these.
 This harness writes its instructions in English for token density, but **that is a property of the prompt, not of the work**. Unless the human asks otherwise:
 
 - **Talk to the human in Japanese.** Every presentation at a 🙋 human gate, every question, every report.
-- **Write every deliverable in Japanese.** `spec.md` (including GWT and business rules), `api-contract.yaml` descriptions and summaries, the ledger, ADRs, design docs, commit messages, and in-code comments. The templates in `.claude/templates/develop/` carry Japanese headings for exactly this reason — do not translate the artifacts into English to match these instructions.
+- **Write every deliverable in Japanese.** `spec.md` (including GWT and business rules), `contract.yaml` summaries and `when` notes, the ledger, ADRs, design docs, commit messages, and in-code comments. The templates in `.claude/templates/develop/` carry Japanese headings for exactly this reason — do not translate the artifacts into English to match these instructions.
 - **State this in every Task input.** Subagents inherit no language setting: when you launch one, tell it that its deliverable is written in Japanese. A producer that returns an English artifact is producing the wrong thing, however correct its content.
-- Identifiers, file names, paths, code, and the reserved keywords of a format (`draft`/`fixed`, OpenAPI keys, GWT's Given/When/Then) stay as they are.
+- Identifiers, file names, paths, code, and the reserved keywords of a format (`draft`/`fixed`, the contract's keys and enum values such as `transport` / `outbound` / `local-store`, GWT's Given/When/Then) stay as they are.
 
 ## 2. Implementation start gate (absolute precondition before touching code)
 
@@ -52,7 +52,7 @@ Before starting any change to implementation, DB, or contracts, confirm the foll
 | --- | --- | --- |
 | 1 | Is it listed in the ledger `docs/specs/specs.md`? | Phase1 — from assigning a new number (F-xxx). The feature ledger's coverage has broken down |
 | 2 | Is `docs/specs/F-xxx-<slug>/spec.md` `fixed`? | Phase1 — **only the spec for this feature**. Do not redo the already-enumerated ledger |
-| 3 | Is `api-contract.yaml` in the same directory `fixed` (`x-status`)? | **Phase3** — derive and freeze the contract, then return to Phase4 |
+| 3 | Is `contract.yaml` in the same directory `fixed` (`x-status`)? | **Phase3** — derive and freeze the contract, then return to Phase4 |
 
 Marking a contract `fixed` is done **by the orchestrator** upon structure-oracle returning zero inconsistencies (§3 Phase3).
 
@@ -94,7 +94,7 @@ Machine verification (spec-lint, the optional gate-hook) may act as a post-hoc c
 
 **One feature, one directory** (`docs/specs/F-xxx-<slug>/`), holding every document that must be read to implement that feature. The SSOT for format is the templates (`.claude/templates/develop/`, shared by producers and spec-lint). The judgment rules for how to write are held by each producer's craft (its agent body).
 
-> **A feature's MIS**: each feature's SSOT is the pair `spec.md` (behavior: meaning, rules, GWT) and `api-contract.yaml` (the shape of the boundary: types, required, enum, wire). Do not pile everything into one of them, and do not copy one's explanation into the other. The split is authoritative in the negative lists of `ssot-definer` / `contract-author`.
+> **A feature's MIS**: each feature's SSOT is the pair `spec.md` (behavior: meaning, rules, GWT) and `contract.yaml` (the shape of the boundary: operations, types, required, enum, errors). **A boundary is not only HTTP** — local persistence, an inbound deeplink, a push payload, and a device capability are boundaries too, and a feature that crosses none of them declares that explicitly (`operations: {}` plus a reason) rather than going without a contract. Do not pile everything into one of them, and do not copy one's explanation into the other. The split is authoritative in the negative lists of `ssot-definer` / `contract-author`.
 
 | Artifact | Location | Author |
 | --- | --- | --- |
@@ -102,7 +102,7 @@ Machine verification (spec-lint, the optional gate-hook) may act as a post-hoc c
 | Design Doc (the How, in present tense) | `docs/design.md` | human (🙋 orchestrator may ghostwrite; reasons go to ADR) |
 | Feature ledger | `docs/specs/specs.md` | `ssot-definer`; the phase column by the orchestrator |
 | Feature spec (behavior) + GWT | `docs/specs/F-xxx-<slug>/spec.md` | `ssot-definer` |
-| Interface contract (shape of the boundary, OpenAPI 3.1) | `docs/specs/F-xxx-<slug>/api-contract.yaml` | `contract-author` |
+| Boundary contract (the shape of what crosses the boundary — HTTP / SDK / local persistence / deeplink / push / device) | `docs/specs/F-xxx-<slug>/contract.yaml` | `contract-author` |
 | Shared contract vocabulary (`$ref` targets) | `docs/specs/_shared/components.yaml` | **orchestrator only** (producers return requests as reports) |
 | DB design | **the location and format the framework/project defines** (§6; absent that, a draft in `docs/db/schema.md`) | `db-designer` + framework rules |
 | ADR | `docs/adr/NNNN-YYYY-MM-DD-title.md` | `adr-writer` |
@@ -135,11 +135,11 @@ Once judged high-risk, pick the single riskiest cross-feature path and hand it t
 
 - Build the DB and the interface contract that correspond to the features, and make the references consistent. **Do not produce a UI design document** (screens and UI states are already enumerated in the SSOT/GWT; the appearance is stood up in Phase4 and eyeballed by a human).
 - **Launch order**:
-  1. `db-designer` (🙋) — draft → `fixed` on human confirmation
+  1. `db-designer` (🙋) — draft → `fixed` on human confirmation. **Skip it when the slice owns no data model** (a feature that only consumes a third party's API or a device capability): its absence is not a reason to hold the contract
   2. **Seeding `_shared` (orchestrator, inline)** — if `docs/specs/_shared/components.yaml` does not exist, create it from the template (`.claude/templates/develop/components.yaml`) and populate the initial vocabulary of shared DTOs and error codes from the fixed DB
   3. `contract-author` (🤖) — derive the contract from the fixed SSOT + DB (`draft`). With multiple features, may run concurrently per feature (pass every Task the identical paths for specs.md, `_shared/components.yaml`, and the existing contracts). **Requests to add to `_shared` are never written by producers; receive them as reports, apply them yourself, then start the next round**
-  4. `structure-oracle` (🔴) — independent judgment in a separate context. Iterate to zero inconsistencies (round limit in §4)
-- **Marking the contract `fixed`**: the moment structure-oracle returns zero inconsistencies, **the orchestrator** sets `x-status` in `api-contract.yaml` to `fixed` (no human approval in between; never let a producer or oracle mark it `fixed` either).
+  4. `structure-oracle` (🔴) — independent judgment in a separate context. Iterate to zero inconsistencies (round limit in §4). **Its mission is the semantic half only** — the format, the transport-field agreement, the vocabulary resolution, and the example integrity are already decided by spec-lint, so do not have it re-read contracts to confirm those
+- **Marking the contract `fixed`**: the moment structure-oracle returns zero inconsistencies, **the orchestrator** sets `x-status` in `contract.yaml` to `fixed` (no human approval in between; never let a producer or oracle mark it `fixed` either).
 - **Done when**: not a single referential inconsistency can be found (every feature references a real entity, every screen in the SSOT references a real feature, the contract expresses inputs and outputs exactly, etc.).
 
 ### Phase4: behavioral implementation (FE / BE, 2 concurrent tracks)
@@ -172,7 +172,7 @@ spec and contract hold **only present-tense invariants**; they do not accumulate
 | --- | --- | --- |
 | Product-wide Why, scope, cross-cutting business principles | `docs/PRD.md` | 🙋 (orchestrator may ghostwrite) |
 | A change in observable behavior | `docs/specs/F-xxx-<slug>/spec.md` | `ssot-definer` (🙋) |
-| A change in the shape of the boundary (request/response) | `docs/specs/F-xxx-<slug>/api-contract.yaml` | `contract-author` |
+| A change in the shape of the boundary (request/response) | `docs/specs/F-xxx-<slug>/contract.yaml` | `contract-author` |
 | Contract vocabulary used by 2+ features (error codes, shared DTOs) | `docs/specs/_shared/components.yaml` | orchestrator (applying producers' reports) |
 | Overall structure, adopted technology, design constraints (the How, present tense) | `docs/design.md` | 🙋 (orchestrator may ghostwrite; reasons go to ADR) |
 | The reasoning, trade-offs, and measurements behind a decision (evidence) | `docs/adr/` | `adr-writer` |

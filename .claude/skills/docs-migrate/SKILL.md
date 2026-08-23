@@ -1,6 +1,6 @@
 ---
 name: docs-migrate
-description: Mechanically inspect whether a project's docs fully conform to the harness's current docs layout and format (docs/specs/F-xxx-<slug>/, OpenAPI contracts, template conformance), and migrate or fix anything on an old layout or in violation. Triggers on /docs-migrate or on phrases such as "docs を移行して" "docs が harness に準拠しているかチェックして" "docs レイアウトを最新化して" (migrate the docs / check the docs conform to the harness / bring the docs layout up to date).
+description: Mechanically inspect whether a project's docs fully conform to the harness's current docs layout and format (docs/specs/F-xxx-<slug>/, boundary contracts, template conformance), and migrate or fix anything on an old layout or in violation. Triggers on /docs-migrate or on phrases such as "docs を移行して" "docs が harness に準拠しているかチェックして" "docs レイアウトを最新化して" (migrate the docs / check the docs conform to the harness / bring the docs layout up to date).
 ---
 
 # 🔧 docs-migrate — conformance inspection and migration of docs
@@ -10,7 +10,7 @@ description: Mechanically inspect whether a project's docs fully conform to the 
 ## Invariants
 
 - **Change the shape, not the content.** Migration converts format and location; it never changes the meaning of a spec (GWT, inputs/outputs, the shape of a contract). If you find yourself wanting to change meaning, stop the migration and route it to `/develop` (the proper flow through ssot-definer / contract-author).
-- **Let machines judge.** Conformance is judged by spec-lint (plus `npx -y @redocly/cli lint` if available). Never make your own visual inspection the grounds for a pass.
+- **Let machines judge.** Conformance is judged in full by spec-lint (it parses contracts structurally; no external validator is involved). Never make your own visual inspection the grounds for a pass.
 - **Preserve draft / fixed.** Migration neither promotes nor demotes status (what was fixed moves over still fixed).
 - **Never silently drop information that would be lost.** Information with no home in the new format is routed to the destinations in develop skill §4 "Routing information" (ADR, issues, commit message) and stated explicitly in both the plan and the report.
 - **Preserve history with git mv.** Do not copy and delete.
@@ -21,6 +21,7 @@ description: Mechanically inspect whether a project's docs fully conform to the 
 ### 1. Diagnose (read-only)
 
 1. Run `node .claude/tools/spec-lint/spec-lint.mjs validate`.
+   Contracts still in OpenAPI form (`api-contract.yaml`, or a top-level `openapi:`) are reported as errors — that is the signal to run the mechanical conversion in step 3.
 2. Classify the result:
    - **Conformant** (exit 0, warnings only) → report the warning list plus "these get handled in the next develop differential update" and **stop** (an invocation that is only a check ends here).
    - **Old layout detected** → go to 2 (migrate).
@@ -34,7 +35,7 @@ Present the migration mapping table and **always get approval before executing**
 | Item | What to present |
 | --- | --- |
 | Mapping | old path → new path (per feature, including proposed slug names) |
-| Conversion | what is relocated mechanically vs. what is content-converted (contract md → OpenAPI yaml, etc.) |
+| Conversion | what is relocated mechanically vs. what is content-converted (OpenAPI contract → boundary contract via `spec-lint convert`, etc.) |
 | Homeless information | descriptions with no home in the new format, and where each is routed |
 | Out of scope | files that will not be touched |
 
@@ -48,7 +49,8 @@ Present the migration mapping table and **always get approval before executing**
 
 **Content conversion (delegated to the owner of the format via Task):**
 
-- Converting contracts (old md → `api-contract.yaml`) is delegated per feature to **`contract-author`** (`.claude/agents/develop/contract-author.md`). Pass "the old contract, the corresponding spec, the shared-vocabulary paths" as input, and state explicitly that this is **a conversion that preserves the shape of the old contract**. May run concurrently (never let them write to `_shared`; receive requests as reports and apply them from the main agent).
+- **Converting OpenAPI contracts (`api-contract.yaml` → `contract.yaml`) is done by machine, not by an agent**: run `node .claude/tools/spec-lint/spec-lint.mjs convert` to see the plan, then `--write` to apply it. It also rewrites `_shared/components.yaml` (`securitySchemes` → `authSchemes`, the `ErrorCode` enum → `errorCodes`). It prints everything it could not carry over — `owned` lands as `true` on every operation, `description` prose is dropped, `errorCodes` values stay as placeholders. **Work through that list yourself** (third-party boundaries become `owned: false` with a `source`, dropped prose is routed per develop skill §4), then `git rm` the old files and re-run validate.
+- Converting a contract from some other old shape (a hand-written md, say) is delegated per feature to **`contract-author`** (`.claude/agents/develop/contract-author.md`). Pass "the old contract, the corresponding spec, the shared-vocabulary paths" as input, and state explicitly that this is **a conversion that preserves the shape of the old contract**. May run concurrently (never let them write to `_shared`; receive requests as reports and apply them from the main agent).
 - Restructuring a spec body that has drifted from the current template is delegated the same way to **`ssot-definer`** (content-preserving, following the differential-update protocol).
 
 ### 4. Verify
