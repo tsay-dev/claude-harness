@@ -131,7 +131,7 @@ Refs: #142
 ## セルフレビュー
 - [ ] 1 スライス（1 価値）に絞られている
 - [ ] コーディング規約に沿っている
-- [ ] 仕様変更は docs/specs（spec.md／api-contract.yaml）を正として更新した
+- [ ] 仕様変更は docs/specs（spec.md／contract.yaml）を正として更新した
 ```
 
 ## ✅ Checklist before commit / PR

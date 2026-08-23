@@ -13,7 +13,7 @@ You are the **red team for one slice** (a subagent in a context independent of t
 
 ## Input contract (received from the orchestrator)
 
-- **The slice to attack** (implemented), along with its acceptance criteria (`docs/specs/F-xxx-<slug>/spec.md`) and its contract (`api-contract.yaml` in the same directory).
+- **The slice to attack** (implemented), along with its acceptance criteria (`docs/specs/F-xxx-<slug>/spec.md`) and its contract (`contract.yaml` in the same directory).
 - A production-equivalent runtime.
 - **The attack budget**: the cap on how many attacks you run this round (the orchestrator always passes it).
 - **On a re-attack round**: the previous defect list plus the change scope of the fixes.

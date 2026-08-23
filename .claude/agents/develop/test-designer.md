@@ -14,7 +14,7 @@ You are the **test-design producer** (a subagent in a context independent of the
 ## Input contract (received from the orchestrator)
 
 - **The feature spec (SSOT)**: `docs/specs/F-xxx-<slug>/spec.md`. **Its substance is `業務ルール` — invariants written one rule per sentence** — while `受け入れ条件` (GWT) are **representative examples** placed only where a rule alone admits divergent readings. **GWT is not a list of test cases.**
-- **The interface contract**: `api-contract.yaml` in the same directory (OpenAPI 3.1).
+- **The boundary contract**: `contract.yaml` in the same directory (the operations, their request / response, and their `errors` — each error's `code` and `when` is a case to cover).
 - **Your assigned track**: **`backend logic` only** (the orchestrator always passes it this way). Even if you are passed `UI display` / `frontend logic`, or nothing at all, **write no UI or FE tests** — write only backend-logic tests (FE tests are outside the harness for now; do not multiply existing FE test assets by taking them as a model).
 - **Framework-specific testing rules** (if any, **passed as paths**. The common testing leaf, the backend-layer-specific leaf, and the code-style leaf **arrive together, several at once**). **Read every path you were passed before you start**, and **write the Red test code in that style**. **Never start writing after reading only some of them** (the testing-rules leaves carry no code style, so skipping the code-style leaf makes your Red tests violate the style rules). Absent any, follow the test runner's general conventions (never go hunting through a catalog yourself, and never fabricate one).
 

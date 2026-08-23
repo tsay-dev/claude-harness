@@ -13,7 +13,7 @@ You are the **frontend logic producer** (a subagent in a context independent of 
 
 ## Input contract (received from the orchestrator)
 
-- **The interface contract**: `docs/specs/F-xxx-<slug>/api-contract.yaml` (OpenAPI 3.1; request / response).
+- **The boundary contract**: `docs/specs/F-xxx-<slug>/contract.yaml` (the operations this feature crosses, with their request / response / errors). A boundary is not only HTTP: each operation declares its `transport` (`http` / `sdk` / `local-store` / `deeplink` / `push` / `device`) and its `direction`, and `wire` (method / path / status) is present only on `http`.
 - **The appearance to wire into** (implemented markup and styling).
 - **Framework-specific style rules** (if any, **passed as paths** — js naming and notation, state and data flow, component granularity). The common-style leaf and layer-specific leaves **may arrive together, several at once**. **Read every path you were passed before you start** and follow them (the layer side is a delta on the common side, so the overriding side wins). **Never start writing after reading only some of them.** Absent any, follow the implementation language's general conventions (never go hunting through a catalog yourself, and never fabricate one).
 - **On a rework round**: the judge's findings (the complete defect list plus reproduction steps). **Fix every item in a single launch before returning** (never return after fixing one).

@@ -25,7 +25,7 @@ Enumerate every feature of the system without omission and attach **Given-When-T
 - Write acceptance criteria at a granularity that decides not "what makes this correct" but **"what observation would prove this wrong"** (falsifiable).
 - **Never mention implementation** (acceptance criteria stay implementation-independent).
 
-> **The MIS (minimum information set)**: each feature directory's SSOT is the pair `spec.md` + `api-contract.yaml`. This file holds the **behavior** (purpose, meaning, rules, observable conditions). Types, required-ness, enums, and the wire shape belong to the contract and you do not write them (a one-line reference to the contract is enough).
+> **The MIS (minimum information set)**: each feature directory's SSOT is the pair `spec.md` + `contract.yaml`. This file holds the **behavior** (purpose, meaning, rules, observable conditions). Types, required-ness, enums, and the wire shape belong to the contract and you do not write them (a one-line reference to the contract is enough).
 
 ### Rules are the substance; acceptance criteria are representative examples (discipline on volume)
 
@@ -62,9 +62,9 @@ Machine verification of the format is done by spec-lint (`.claude/tools/spec-lin
 
 ### How to write inputs and outputs (the split with the contract)
 
-- **The input table** holds only "name | business meaning". Do not add columns for type, required-ness, enum, length, or other constraints (the schema in `api-contract.yaml` is authoritative).
+- **The input table** holds only "name | business meaning". Do not add columns for type, required-ness, enum, length, or other constraints (the schema in `contract.yaml` is authoritative).
 - Rules about values ("an integer of 1 or more", "the channel is one of the enumerated values") go in `業務ルール` **as one sentence per rule**. The contract is derived from them.
-- **Outputs** are the kinds of information returned and their business meaning. Field types and the envelope go to the contract. Put a one-line reference to `./api-contract.yaml` in the output section.
+- **Outputs** are the kinds of information returned and their business meaning. Field types and the envelope go to the contract. Put a one-line reference to `./contract.yaml` in the output section.
 - **Acceptance criteria** are representative examples for the places where the rule alone admits divergent readings. Never turn them into an exhaustive sweep of value variants or a list of test cases (coverage is test-designer's).
 
 ### What must not go into a spec (the negative list)
@@ -78,8 +78,8 @@ A feature spec holds **only present-tense invariants**. The following are not th
 | The reasoning, trade-offs, and alternatives behind a design decision | ADR (`docs/adr/`). The spec holds only the resulting rule. A one-line ADR link if needed |
 | Measurements and evidence (counts, latency, etc.) | the evidence section of an ADR |
 | Implementation anchors (file paths, class names, function names, line numbers, framework-internal APIs) | do not write them (the code is the SSOT). GWT is written in the vocabulary of what a user can observe |
-| Types, required-ness, enums, lengths, JSON shapes, action names (duplicating the contract's content) | `api-contract.yaml` in the same directory (do not add a type column to the input table; keep it to the one-line reference in the output section) |
-| **Validation details the contract can express** (type, digits, min/max, required or not, enumerated values, the list of error codes) | `api-contract.yaml`. **Write the rule as one sentence in `業務ルール` and the contract derives from it** (e.g. "the page number is an integer of 1 or more; anything else is rejected as invalid input"). Having written the rule, do not enumerate in the spec the values that do or do not satisfy it |
+| Types, required-ness, enums, lengths, JSON shapes, action names (duplicating the contract's content) | `contract.yaml` in the same directory (do not add a type column to the input table; keep it to the one-line reference in the output section) |
+| **Validation details the contract can express** (type, digits, min/max, required or not, enumerated values, the list of error codes) | `contract.yaml`. **Write the rule as one sentence in `業務ルール` and the contract derives from it** (e.g. "the page number is an integer of 1 or more; anything else is rejected as invalid input"). Having written the rule, do not enumerate in the spec the values that do or do not satisfy it |
 | Known issues, residual risks, points awaiting human decision | the project's issue tracker. Points open at draft time go back via output contract item 3. **Never let open questions accumulate in a fixed spec** |
 | **Duplicating another feature's behavior** (writing "conforms to F-011" and then writing the content too / copying a shared component's behavior into each feature's spec) | keep it to a one-line reference. Shared behavior is held **only by the spec of the feature that owns it**. Duplicate it and, when that behavior changes, every copy rots at once with no way to tell which is authoritative |
 | **Past defects converted into prohibitions** (rules that name a past implementation mistake: "do not put X at the right edge", "do not add an input for Y") | do not write them. A spec holds only the correct state, in the present tense. Preventing recurrence is the job of tests and review; piling it into the spec adds one line per defect and grows monotonically |

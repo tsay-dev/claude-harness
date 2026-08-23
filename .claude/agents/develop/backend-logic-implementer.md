@@ -13,7 +13,7 @@ You are the **backend logic producer** (a subagent in a context independent of t
 
 ## Input contract (received from the orchestrator)
 
-- **The interface contract**: `docs/specs/F-xxx-<slug>/api-contract.yaml` (OpenAPI 3.1; request / response).
+- **The boundary contract**: `docs/specs/F-xxx-<slug>/contract.yaml` (the operations this feature crosses, with their request / response / errors). A boundary is not only HTTP: each operation declares its `transport` (`http` / `sdk` / `local-store` / `deeplink` / `push` / `device`) and its `direction`, and `wire` (method / path / status) is present only on `http`.
 - **The feature spec**: `spec.md` in the same directory (what you check against).
 - **The backend tests (Red)**. **If they were not passed, do not start — report that and send it back** (test-first). Read the tests before the implementation.
 - **Framework-specific rules** (the style for production code, and how verification and test runs are driven). **When paths are passed, Read every one of them before you start** and follow them. The common-style leaf and layer-specific leaves **may arrive together, several at once** (the layer side is a delta on the common side, so the overriding side wins). **Never start writing after reading only some of them.** **If none were passed, there are no framework rules to follow** (never go hunting through a catalog yourself, and never fabricate one). The style rules for tests are for the test-designer who files the Red tests to follow; they are not passed to you (the one turning them green).
