@@ -1,22 +1,32 @@
 # docs/specs/_shared/components.yaml — the contracts' shared vocabulary ($ref targets)
-# What may go here: only what 2+ features use (the error shape, error codes, the auth scheme, shared DTOs)
+# What may go here: only what 2+ features use (auth schemes, error codes, shared DTOs)
 # A schema used by only one feature is written inline in that contract (never here)
 # Only the orchestrator writes here. Concurrent producers never append; they report the vocabulary they want added
-components:
-  securitySchemes:
-    session:
-      type: apiKey
-      in: cookie
-      name: session
-  schemas:
-    Error:
-      type: object
-      required: [code, message]
-      properties:
-        code:
-          $ref: "#/components/schemas/ErrorCode"
-        message:
-          type: string
-    ErrorCode:
-      type: string
-      enum: [INVALID_INPUT, FORBIDDEN, NOT_FOUND]
+# Accepted YAML is the same strict subset as contract.yaml (no anchors/aliases, no block scalars)
+
+# Auth schemes referenced by a contract's `auth:`. An operation naming an undefined scheme is an error
+# NOTHING is enabled by default — the harness never decides a host's auth method (CLAUDE.md §0).
+# Enable the ones this project actually uses; several may coexist
+authSchemes: {}
+  # session:                 # web: a cookie session
+  #   kind: cookie
+  #   name: session
+  # bearer:                  # native / SPA: a token in the Authorization header
+  #   kind: token
+  #   scheme: Bearer
+  #   storage: keychain      # where the token lives (keychain / secure-store / memory). Native must state this
+  # apiKey:
+  #   kind: header
+  #   name: X-Api-Key
+
+# The closed vocabulary for a contract's `errors[].code`. An undefined code is an error.
+# The value is a one-line note on what the code means (the triggering condition goes in the contract's `when:`)
+errorCodes:
+  INVALID_INPUT: 入力が要件を満たさない
+  FORBIDDEN: 権限がない
+  NOT_FOUND: 対象が存在しない
+  PERMISSION_DENIED: OS の権限が拒否されている   # used by operations that declare requires:
+
+# Shared DTOs used by 2+ features
+# $ref target: ../_shared/components.yaml#/schemas/<Name>
+schemas: {}

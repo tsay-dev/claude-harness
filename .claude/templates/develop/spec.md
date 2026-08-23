@@ -6,7 +6,7 @@
 ---
 
 <!--
-  This directory's SSOT is the pair spec.md + api-contract.yaml (the MIS).
+  This directory's SSOT is the pair spec.md + contract.yaml (the MIS).
   This file holds behavior (meaning, rules, observable conditions). The shape of the
   boundary (types, required-ness, enums, wire) goes to the contract.
 
@@ -28,7 +28,7 @@
 - 権限条件：
 
 ## 入力 (Input)
-<!-- Types, ranges, required-ness, and enumerated values live in api-contract.yaml. Do not transcribe them here.
+<!-- Types, ranges, required-ness, and enumerated values live in contract.yaml. Do not transcribe them here.
      Rules about accepted values ("an integer of 1 or more", etc.) go into 業務ルール as one sentence;
      the contract is derived from there. -->
 
@@ -41,7 +41,7 @@
      Do not write placement or decoration (spacing, ordering, label position, color). -->
 
 - 正常時：（利用者が受け取る情報・遷移先）
-- 契約：`./api-contract.yaml`
+- 契約：`./contract.yaml`
 
 ## 状態 (States)
 （各 1 行。詳細は業務ルールへ）

@@ -1,0 +1,140 @@
+# Boundary contract — one feature, one file
+# With spec.md in the same directory this forms the feature's MIS (holds only the shape of the boundary; behavior and rules live in the spec)
+# This is NOT OpenAPI. One format covers HTTP and non-HTTP boundaries alike (why: docs/adr/0001)
+# Conformance is judged by `node .claude/tools/spec-lint/spec-lint.mjs validate` — never make your own reading the grounds for a pass
+# Accepted YAML is a strict subset (why: docs/adr/0002):
+#   - anchors and aliases (& / *) are an error — share through _shared/components.yaml instead
+#   - block scalars (| / >) are an error — long prose belongs in spec.md
+# Placeholders (F-000 / YYYY-MM-DD / <...>) must be replaced with real values before it is marked fixed
+# Write summary and when text in Japanese
+x-feature-id: F-000          # must match the ID part of the directory name F-000-<slug>
+x-status: draft              # draft | fixed (the caller marks it fixed; never do it yourself)
+x-spec: ./spec.md            # the behavioral SSOT (authoritative for purpose, rules, and GWT)
+x-updated: YYYY-MM-DD
+
+operations:
+  # Key = the operation name (lowerCamelCase, unique within this file). It is the call site's identity
+  <operationName>:
+    transport: http          # http | sdk | local-store | deeplink | push | device (enforced by spec-lint, which is authoritative)
+    direction: outbound      # outbound = this app calls out / inbound = this app is called
+    owned: true              # true = we decide this shape / false = we transcribe someone else's (add source:)
+    auth: <scheme>           # a name defined in _shared authSchemes, or none. Never omit — "forgot" and "not needed" must stay distinguishable
+    summary: <何をするか 1 行>  # one line only; no detailed explanation
+    wire:                    # required when transport is http, an error otherwise
+      method: POST
+      path: /xxx
+      success: 200
+    request:
+      type: object
+      required: [i_xxx]
+      properties:
+        i_xxx:
+          type: string
+          minLength: 1
+          maxLength: 255
+          # description is a short note on the wire constraint only (business meaning and rules live in the spec)
+    response:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: integer }
+        status: { type: string, const: ok }
+    errors:                  # one entry per triggering condition. code must be defined in _shared errorCodes
+      - code: INVALID_INPUT
+        when: <発生条件を 1 行>   # a word or a single line; never restate the business rule
+        wire: { status: 400 }  # only when transport is http
+      - code: FORBIDDEN
+        when: <発生条件を 1 行>
+        wire: { status: 403 }
+    examples:                # mandatory once fixed: at least one success and one failure, with real values
+      ok:
+        request: { i_xxx: "abc" }
+        response: { id: 1, status: ok }
+      invalid:
+        request: { i_xxx: "" }
+        error: INVALID_INPUT
+
+# --- Variants by transport (uncomment the ones this feature needs) ---
+#
+#  Local persistence — the shape is ours to decide, so owned stays true. No wire
+#   saveAppearance:
+#     transport: local-store
+#     direction: outbound
+#     owned: true
+#     auth: none
+#     summary: <表示テーマを保存する>
+#     request:
+#       type: object
+#       required: [theme]
+#       properties:
+#         theme: { type: string, enum: [light, dark, system] }
+#     response: { type: object, properties: { theme: { type: string } } }
+#     errors:
+#       - { code: INVALID_INPUT, when: <未知の theme> }
+#     examples:
+#       ok: { request: { theme: dark }, response: { theme: dark } }
+#       invalid: { request: { theme: neon }, error: INVALID_INPUT }
+#
+#  Deeplink / universal link — the app is called, so direction is inbound. entry: is the pattern
+#   openItem:
+#     transport: deeplink
+#     direction: inbound
+#     owned: true
+#     auth: none
+#     summary: <リンクから商品詳細を開く>
+#     entry: myapp://item/{itemId}
+#     request:
+#       type: object
+#       required: [itemId]
+#       properties:
+#         itemId: { type: string, minLength: 1 }
+#
+#  Push notification — inbound as well. entry: is the payload's discriminator
+#   receiveOrderUpdate:
+#     transport: push
+#     direction: inbound
+#     owned: true
+#     auth: none
+#     summary: <注文状態の更新通知を受け取る>
+#     entry: order.updated
+#     request:
+#       type: object
+#       required: [orderId, status]
+#       properties:
+#         orderId: { type: string }
+#         status: { type: string, enum: [shipped, delivered] }
+#
+#  Device capability — requires: declares the permission this operation depends on.
+#  A requires: with no matching permission error is an error (the denied path must be in the contract)
+#   capturePhoto:
+#     transport: device
+#     direction: outbound
+#     owned: true
+#     auth: none
+#     summary: <カメラで写真を撮る>
+#     requires: [camera]
+#     response: { type: object, required: [uri], properties: { uri: { type: string } } }
+#     errors:
+#       - { code: PERMISSION_DENIED, when: <カメラ権限が拒否されている> }
+#
+#  A third party's boundary (Firebase / Supabase / an existing external API).
+#  owned: false means we transcribe rather than settle — the DB correspondence check is waived and source: is required
+#   fetchProfile:
+#     transport: sdk
+#     direction: outbound
+#     owned: false
+#     source: <写し取り元の URL または SDK のバージョン>
+#     auth: bearer
+#     summary: <プロフィールを取得する>
+#     response: { type: object, required: [id, name], properties: { id: { type: string }, name: { type: string } } }
+#     errors:
+#       - { code: NOT_FOUND, when: <該当ユーザーなし> }
+
+# --- A feature with no boundary at all ---
+#
+#  A feature that closes inside one screen (no network, no persistence, no OS capability)
+#  declares zero boundaries rather than going without a contract. This is a declaration, not an exemption,
+#  so develop skill §2's start gate stays intact. The reason is required — operations: {} alone is an error
+#
+#   operations: {}
+#   x-no-boundary: <入力中のバリデーション表示のみで、通信も永続もない>

@@ -11,10 +11,10 @@ templates in this directory, so revising the format means editing the template a
 | `design.md` | `docs/design.md` | human (orchestrator may ghostwrite) |
 | `specs.md` | `docs/specs/specs.md` (the ledger) | ssot-definer; the phase column by the orchestrator |
 | `spec.md` | `docs/specs/F-xxx-<slug>/spec.md` (behavior) | ssot-definer |
-| `api-contract.yaml` | `docs/specs/F-xxx-<slug>/api-contract.yaml` (the shape of the boundary) | contract-author |
+| `contract.yaml` | `docs/specs/F-xxx-<slug>/contract.yaml` (the shape of the boundary — HTTP and non-HTTP alike) | contract-author |
 | `components.yaml` | `docs/specs/_shared/components.yaml` | orchestrator only (producers report requests to add) |
 
-`spec.md` and `api-contract.yaml` are a feature directory's MIS (two files forming one feature's SSOT).
+`spec.md` and `contract.yaml` are a feature directory's MIS (two files forming one feature's SSOT).
 The shape of the columns and keys comes from these templates; the judgment of what not to write comes
 from each producer's craft.
 
