@@ -8,21 +8,25 @@
 //    docs/specs/specs.md                     台帳（全機能一覧・工程列）
 //    docs/specs/_shared/components.yaml      契約の共有語彙（$ref 先）
 //    docs/specs/F-xxx-<slug>/spec.md         機能詳細（SSOT・GWT）
-//    docs/specs/F-xxx-<slug>/api-contract.yaml  処理インターフェース契約（OpenAPI 3.1）
+//    docs/specs/F-xxx-<slug>/contract.yaml      機能の境界契約（harness 独自 YAML）
 //
 //  書式の SSOT は .claude/templates/develop/ のテンプレート。本ツールは
 //  spec.md の必須セクション・必須フロントマター・契約の必須 x- キーを
 //  テンプレートから導出する（書式改定はテンプレートを直せば lint も追従する）。
 //
+//  契約フォーマットの判断は docs/adr/0001（OpenAPI をやめた理由）と
+//  docs/adr/0002（パーサを自前実装し YAML を厳格サブセットに限る理由）。
+//
 //  使い方:
 //    node spec-lint.mjs validate [--docs docs]      全 docs を検証（フォーマット＋不変条件）
 //    node spec-lint.mjs gate --message <file>       commit メッセージの Feature: トレーラを検証
 //    node spec-lint.mjs gate --feature F-001         指定機能が fixed か検証
+//    node spec-lint.mjs convert [--write]           旧 OpenAPI 契約を新フォーマットへ機械変換
 //
 //  終了コード: 0=OK / 1=違反あり / 2=使い方エラー
 //
 
-import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -140,7 +144,7 @@ function deriveSpecFormat() {
 }
 
 function deriveContractKeys() {
-	const file = join(TEMPLATE_DIR, "api-contract.yaml");
+	const file = join(TEMPLATE_DIR, "contract.yaml");
 	const fallback = ["x-feature-id", "x-status", "x-spec", "x-updated"];
 	if (!existsSync(file)) return fallback;
 	const keys = [];
@@ -395,7 +399,7 @@ function validateFeatureSpec(file, text, fmt) {
 			if (/\|.*型.*\|/.test(t) || /必須/.test(t) || /制約/.test(t)) {
 				warn(
 					file,
-					`入力表に型・必須・制約列がある — 型情報の正は api-contract.yaml。spec の入力は「名前｜業務上の意味」のみ（templates/develop/spec.md）`,
+					`入力表に型・必須・制約列がある — 型情報の正は contract.yaml。spec の入力は「名前｜業務上の意味」のみ（templates/develop/spec.md）`,
 				);
 				break;
 			}
@@ -404,70 +408,550 @@ function validateFeatureSpec(file, text, fmt) {
 	return { id: data["機能ID"] || null, status, inputs, statesText };
 }
 
-//  --- api-contract.yaml の検証（依存ゼロの行スキャン。構文の完全検証は
-//      producer が redocly/spectral で行う前提で、ここではライフサイクル・
-//      参照整合・spec との突き合わせに限定する）---
-function topLevelYamlKeys(text) {
-	const keys = {};
-	for (const line of text.split(/\r?\n/)) {
-		const m = line.match(/^([\w-]+):\s*(.*)$/);
-		if (m) keys[m[1]] = m[2].replace(/\s+#.*$/, "").replace(/^["']|["']$/g, "").trim();
+//  --- 厳格サブセット YAML パーサ（判断の理由は docs/adr/0002）---
+//
+//  受理するのはマップ / シーケンス / フロー記法 / スカラ / コメントのみ。
+//  アンカー・エイリアス（& / *）と複数行スカラ（| / >）は構文エラーにする。
+//  共有は _shared/components.yaml を通す・長い散文は spec.md に置く、という
+//  契約の分担を「未対応」ではなく「エラー」として入口で落とすためで、
+//  サブセットを狭くしていること自体が検査になっている。
+//
+//  lenient: true は旧 OpenAPI 契約の読み取り（convert）専用。複数行スカラを
+//  1 行に畳んで受理する。検証には使わない。
+
+const BLOCK_INDICATORS = new Set(["|", ">", "|-", ">-", "|+", ">+", "|2", ">2"]);
+const isBlockIndicator = (s) => BLOCK_INDICATORS.has(s) || /^[|>][-+]?\d*$/.test(s);
+const isQuoted = (s) =>
+	(s.startsWith('"') && s.endsWith('"') && s.length > 1) ||
+	(s.startsWith("'") && s.endsWith("'") && s.length > 1);
+//  キーに {orderId} のようなテンプレート片が入りうる（フロー記法は parseNode が先に見る）
+const MAP_ENTRY_RE = /^(?:"[^"]*"|'[^']*'|[^:#]+?)\s*:(\s|$)/;
+
+//  行末コメントを落とす（引用符の中の # は残す）
+function stripComment(line) {
+	let out = "";
+	let quote = null;
+	for (let i = 0; i < line.length; i++) {
+		const c = line[i];
+		if (quote) {
+			out += c;
+			if (c === "\\" && quote === '"') out += line[++i] ?? "";
+			else if (c === quote) quote = null;
+			continue;
+		}
+		if (c === '"' || c === "'") {
+			quote = c;
+			out += c;
+			continue;
+		}
+		if (c === "#" && (i === 0 || /\s/.test(line[i - 1]))) break;
+		out += c;
 	}
-	return keys;
+	return out;
 }
 
-function validateContract(file, text, dirId, xKeys) {
-	const keys = topLevelYamlKeys(text);
+function parseFlow(text, ctx, lineNo) {
+	const st = { s: text, i: 0 };
+	const skip = () => {
+		while (st.i < st.s.length && /\s/.test(st.s[st.i])) st.i++;
+	};
+	const readQuoted = () => {
+		const q = st.s[st.i++];
+		let out = "";
+		while (st.i < st.s.length && st.s[st.i] !== q) {
+			if (st.s[st.i] === "\\" && q === '"') st.i++;
+			out += st.s[st.i++];
+		}
+		st.i++;
+		return out;
+	};
+	const readBare = (stops) => {
+		let out = "";
+		while (st.i < st.s.length && !stops.includes(st.s[st.i])) out += st.s[st.i++];
+		return out.trim();
+	};
+	const readValue = () => {
+		skip();
+		const c = st.s[st.i];
+		if (c === "{") {
+			st.i++;
+			const obj = {};
+			skip();
+			if (st.s[st.i] === "}") {
+				st.i++;
+				return obj;
+			}
+			for (;;) {
+				skip();
+				const key = st.s[st.i] === '"' || st.s[st.i] === "'" ? readQuoted() : readBare([":", ",", "}"]);
+				skip();
+				if (st.s[st.i] !== ":") {
+					ctx.reject(lineNo, `フロー記法のマップに ":" が無い: "${text}"`);
+					return obj;
+				}
+				st.i++;
+				obj[key] = readValue();
+				skip();
+				if (st.s[st.i] === ",") {
+					st.i++;
+					continue;
+				}
+				if (st.s[st.i] === "}") {
+					st.i++;
+					return obj;
+				}
+				ctx.reject(lineNo, `フロー記法のマップが閉じていない: "${text}"`);
+				return obj;
+			}
+		}
+		if (c === "[") {
+			st.i++;
+			const arr = [];
+			skip();
+			if (st.s[st.i] === "]") {
+				st.i++;
+				return arr;
+			}
+			for (;;) {
+				arr.push(readValue());
+				skip();
+				if (st.s[st.i] === ",") {
+					st.i++;
+					continue;
+				}
+				if (st.s[st.i] === "]") {
+					st.i++;
+					return arr;
+				}
+				ctx.reject(lineNo, `フロー記法のシーケンスが閉じていない: "${text}"`);
+				return arr;
+			}
+		}
+		if (c === '"' || c === "'") return readQuoted();
+		return coerce(readBare([",", "}", "]"]), ctx, lineNo);
+	};
+	const v = readValue();
+	skip();
+	if (st.i < st.s.length) ctx.reject(lineNo, `フロー記法の後に余分な文字がある: "${st.s.slice(st.i)}"`);
+	return v;
+}
 
-	if (!keys["openapi"]) err(file, `トップレベル "openapi:" が無い（OpenAPI 3.1 で書く）`);
-	else if (!keys["openapi"].startsWith("3.1"))
-		warn(file, `openapi バージョンが 3.1 系でない: "${keys["openapi"]}"`);
-	if (!/^paths:/m.test(text)) err(file, `トップレベル "paths:" が無い`);
+function coerce(s, ctx, lineNo) {
+	if (s === "") return null;
+	if (s.startsWith("&") || s.startsWith("*"))
+		return ctx.reject(
+			lineNo,
+			`アンカー / エイリアス "${s.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
+		);
+	if (isQuoted(s)) return s.slice(1, -1);
+	if (s === "true") return true;
+	if (s === "false") return false;
+	if (s === "null" || s === "~") return null;
+	if (/^-?\d+$/.test(s)) return Number(s);
+	if (/^-?\d*\.\d+$/.test(s)) return Number(s);
+	return s;
+}
+
+function parseScalar(raw, ctx, lineNo) {
+	const s = raw.trim();
+	if (s.startsWith("{") || s.startsWith("[")) return parseFlow(s, ctx, lineNo);
+	return coerce(s, ctx, lineNo);
+}
+
+//  値に行番号を持たせる（メッセージで位置を出すため。列挙には出さない）
+function stamp(node, line, keyLines) {
+	if (node && typeof node === "object") {
+		Object.defineProperty(node, "__line", { value: line, enumerable: false });
+		if (keyLines) Object.defineProperty(node, "__keyLines", { value: keyLines, enumerable: false });
+	}
+	return node;
+}
+const lineOf = (node, key) =>
+	(node && node.__keyLines && node.__keyLines[key]) || (node && node.__line) || 0;
+
+function parseStrictYaml(text, opts = {}) {
+	const lenient = !!opts.lenient;
+	const problems = [];
+	const ctx = {
+		lenient,
+		reject: (line, msg) => {
+			problems.push({ line, msg });
+			return null;
+		},
+	};
+
+	//  1) 行を正規化（コメント除去・空行除去）しつつ、タブを弾く
+	const src = text.split(/\r?\n/);
+	const rows = [];
+	for (let i = 0; i < src.length; i++) {
+		if (src[i].includes("\t")) ctx.reject(i + 1, "タブ文字は使えない（インデントは半角スペース）");
+		const line = stripComment(src[i]).replace(/\s+$/, "");
+		if (line.trim() === "") continue;
+		if (line.trim() === "---" || line.trim() === "...") continue;
+		rows.push({ no: i + 1, indent: line.match(/^ */)[0].length, text: line.trim() });
+	}
+
+	//  2) "- key: value" を "-" と "key: value" の 2 行に割って、以降を一様に扱う
+	const flat = [];
+	for (const r of rows) {
+		if (r.text !== "-" && r.text.startsWith("- ")) {
+			const innerOffset = r.text.length - r.text.slice(2).replace(/^ +/, "").length;
+			flat.push({ no: r.no, indent: r.indent, text: "-" });
+			flat.push({ no: r.no, indent: r.indent + innerOffset, text: r.text.slice(2).trim() });
+		} else {
+			flat.push(r);
+		}
+	}
+
+	let pos = 0;
+	const skipDeeper = (indent) => {
+		while (pos < flat.length && flat[pos].indent > indent) pos++;
+	};
+	const consumeBlock = (indent) => {
+		const parts = [];
+		while (pos < flat.length && flat[pos].indent > indent) parts.push(flat[pos++].text);
+		return parts.join(" ");
+	};
+
+	function parseNode(indent) {
+		if (pos >= flat.length || flat[pos].indent < indent) return null;
+		const row = flat[pos];
+		if (row.text.startsWith("{") || row.text.startsWith("[")) {
+			pos++;
+			return parseFlow(row.text, ctx, row.no);
+		}
+		if (row.text === "-") return parseSeq(indent);
+		if (!MAP_ENTRY_RE.test(row.text)) {
+			pos++;
+			return parseScalar(row.text, ctx, row.no);
+		}
+		return parseMap(indent);
+	}
+
+	function parseSeq(indent) {
+		const arr = [];
+		const startLine = flat[pos].no;
+		while (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-") {
+			pos++;
+			if (pos < flat.length && flat[pos].indent > indent) arr.push(parseNode(flat[pos].indent));
+			else arr.push(null);
+		}
+		return stamp(arr, startLine);
+	}
+
+	function parseMap(indent) {
+		const obj = {};
+		const keyLines = {};
+		const startLine = flat[pos].no;
+		while (pos < flat.length && flat[pos].indent >= indent) {
+			const row = flat[pos];
+			if (row.indent > indent) {
+				//  違反行の配下は読み飛ばし、同じ深さに戻って走査を続ける（連鎖エラーを出さない）
+				ctx.reject(row.no, `インデントが揃っていない（${row.indent} 桁）`);
+				skipDeeper(indent);
+				continue;
+			}
+			if (row.text === "-") break;
+			const m = row.text.match(/^("[^"]*"|'[^']*'|[^:]+?)\s*:\s*(.*)$/);
+			if (!m) {
+				ctx.reject(row.no, `マップの "キー: 値" として読めない: "${row.text}"`);
+				pos++;
+				continue;
+			}
+			const key = isQuoted(m[1].trim()) ? m[1].trim().slice(1, -1) : m[1].trim();
+			const rest = m[2].trim();
+			pos++;
+			let value;
+			if (rest === "" || rest.startsWith("&") || rest.startsWith("*")) {
+				if (rest !== "")
+					ctx.reject(
+						row.no,
+						`アンカー / エイリアス "${rest.split(/\s/)[0]}" は使えない（共有は _shared/components.yaml の $ref を通す）`,
+					);
+				if (pos < flat.length && flat[pos].indent > indent) value = parseNode(flat[pos].indent);
+				else if (pos < flat.length && flat[pos].indent === indent && flat[pos].text === "-")
+					value = parseSeq(indent);
+				else value = null;
+			} else if (isBlockIndicator(rest)) {
+				if (lenient) {
+					value = consumeBlock(indent);
+				} else {
+					ctx.reject(row.no, `複数行スカラ "${rest}" は使えない（長い散文は spec.md に置く）`);
+					skipDeeper(indent);
+					value = null;
+				}
+			} else {
+				value = parseScalar(rest, ctx, row.no);
+			}
+			if (key in obj) ctx.reject(row.no, `キー "${key}" が重複している`);
+			obj[key] = value;
+			keyLines[key] = row.no;
+		}
+		if (pos < flat.length && flat[pos].indent > indent) {
+			ctx.reject(flat[pos].no, `インデントが揃っていない（${flat[pos].indent} 桁）`);
+			skipDeeper(indent);
+		}
+		return stamp(obj, startLine, keyLines);
+	}
+
+	const root = flat.length === 0 ? {} : parseNode(flat[0].indent);
+	if (pos < flat.length) ctx.reject(flat[pos].no, `トップレベルのインデントが揃っていない`);
+	return { root: root || {}, problems };
+}
+
+//  --- 契約 contract.yaml の検証 ---
+
+const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device"];
+const DIRECTIONS = ["outbound", "inbound"];
+const ENTRY_TRANSPORTS = ["deeplink", "push"];
+const PERMISSION_CODE = "PERMISSION_DENIED";
+const OP_NAME_RE = /^[a-z][A-Za-z0-9]*$/;
+
+const isMap = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+function validateContract(file, text, dirId, xKeys, shared) {
+	const at = (line) => (line ? `${file}:${line}` : file);
+	const { root, problems } = parseStrictYaml(text);
+	for (const p of problems) err(at(p.line), p.msg);
+
+	//  旧 OpenAPI 契約の検出（ハードカット。docs/adr/0001）
+	if ("openapi" in root || "paths" in root) {
+		err(
+			file,
+			`旧フォーマット（OpenAPI）の契約を検出。/docs-migrate で新フォーマットへ移行する` +
+				`（機械変換: node .claude/tools/spec-lint/spec-lint.mjs convert --write）`,
+		);
+		return { id: root["x-feature-id"] || dirId, status: null, errorCount: 0, legacy: true, text };
+	}
 
 	for (const k of xKeys) {
-		if (!(k in keys) || keys[k].length === 0) err(file, `必須キー "${k}" が空/欠落`);
+		const v = root[k];
+		if (v === undefined || v === null || String(v).length === 0)
+			err(at(lineOf(root, k)), `必須キー "${k}" が空/欠落`);
 	}
-	const status = checkStatus(file, keys["x-status"], "x-status");
-	const id = keys["x-feature-id"] || null;
+	//  欠落は上の必須キー検査が既に出しているので、ここでは値の妥当性だけを見る
+	const status = root["x-status"]
+		? checkStatus(at(lineOf(root, "x-status")), root["x-status"], "x-status")
+		: null;
+	const id = root["x-feature-id"] || null;
 	if (id && dirId && id !== dirId)
-		err(file, `x-feature-id "${id}" がディレクトリ名の ID "${dirId}" と不一致`);
+		err(at(lineOf(root, "x-feature-id")), `x-feature-id "${id}" がディレクトリ名の ID "${dirId}" と不一致`);
 
-	//  x-spec の解決
-	if (keys["x-spec"]) {
-		const target = join(dirname(file), keys["x-spec"]);
-		if (!existsSync(target)) err(file, `x-spec が解決しない: ${keys["x-spec"]}`);
+	if (root["x-spec"]) {
+		const target = join(dirname(file), String(root["x-spec"]));
+		if (!existsSync(target)) err(at(lineOf(root, "x-spec")), `x-spec が解決しない: ${root["x-spec"]}`);
 	}
 
-	//  $ref の解決（相対ファイルの存在＋アンカー末尾キーの存在）
-	for (const m of text.matchAll(/\$ref:\s*["']?([^"'\s]+)["']?/g)) {
-		const ref = m[1];
-		const [path, anchor] = ref.split("#");
+	const ops = root["operations"];
+	if (ops === undefined) {
+		err(file, `トップレベル "operations:" が無い（境界が無い機能は operations: {} と x-no-boundary で宣言する）`);
+		return { id, status, errorCount: 0, text };
+	}
+	if (!isMap(ops)) {
+		err(at(lineOf(root, "operations")), `"operations" はマップで書く`);
+		return { id, status, errorCount: 0, text };
+	}
+
+	const names = Object.keys(ops);
+	if (names.length === 0) {
+		//  境界ゼロは「免除」ではなく「宣言」。理由の無い空は通さない
+		const reason = root["x-no-boundary"];
+		if (!reason || String(reason).trim().length === 0)
+			err(
+				file,
+				`operations が空なのに x-no-boundary が無い（境界を持たない理由を 1 行で書く。書けないなら境界がある）`,
+			);
+	}
+
+	let errorCount = 0;
+	for (const name of names) {
+		const op = ops[name];
+		const opAt = at(lineOf(ops, name));
+		const label = `operations.${name}`;
+		if (!isMap(op)) {
+			err(opAt, `${label} はマップで書く`);
+			continue;
+		}
+		if (!OP_NAME_RE.test(name))
+			err(opAt, `${label}: 操作名は lowerCamelCase で書く`);
+
+		const fieldAt = (k) => at(lineOf(op, k) || lineOf(ops, name));
+		const transport = op["transport"];
+		const direction = op["direction"];
+		const owned = op["owned"];
+
+		if (!TRANSPORTS.includes(transport))
+			err(fieldAt("transport"), `${label}: transport は ${TRANSPORTS.join(" | ")} のいずれか。実際: ${JSON.stringify(transport)}`);
+		if (!DIRECTIONS.includes(direction))
+			err(fieldAt("direction"), `${label}: direction は ${DIRECTIONS.join(" | ")} のいずれか。実際: ${JSON.stringify(direction)}`);
+		if (typeof owned !== "boolean")
+			err(fieldAt("owned"), `${label}: owned は true|false で明示する（形を我々が決めるのか写し取るのか）`);
+
+		//  auth は省略を許さない。「書き忘れ」と「不要と判断した」を区別できなくなるため
+		const auth = op["auth"];
+		if (auth === undefined || auth === null || String(auth).length === 0)
+			err(fieldAt("auth"), `${label}: auth が無い（不要なら none と明示する）`);
+		else if (auth !== "none" && !(shared.authSchemes && auth in shared.authSchemes))
+			err(
+				fieldAt("auth"),
+				`${label}: auth "${auth}" が _shared/components.yaml の authSchemes に無い`,
+			);
+
+		if (!op["summary"] || String(op["summary"]).trim().length === 0)
+			err(fieldAt("summary"), `${label}: summary が無い（何をするかを 1 行）`);
+
+		//  wire は http 専用。他の transport に HTTP 固有の語彙が漏れるのを止める
+		const wire = op["wire"];
+		if (transport === "http") {
+			if (!isMap(wire)) err(fieldAt("wire"), `${label}: transport が http なら wire（method / path / success）が要る`);
+			else {
+				for (const k of ["method", "path", "success"])
+					if (wire[k] === undefined || wire[k] === null)
+						err(fieldAt("wire"), `${label}: wire.${k} が無い`);
+			}
+		} else if (wire !== undefined) {
+			err(fieldAt("wire"), `${label}: transport が ${transport} なのに wire がある（wire は http 専用）`);
+		}
+
+		//  写し取りの契約は出所が要る
+		if (owned === false && (!op["source"] || String(op["source"]).trim().length === 0))
+			err(fieldAt("source"), `${label}: owned が false なら source（写し取り元の URL / SDK バージョン）が要る`);
+		if (owned === true && op["source"] !== undefined)
+			err(fieldAt("source"), `${label}: owned が true なのに source がある（自前の境界に写し取り元は無い）`);
+
+		//  呼ばれる側は入口の識別子が要る
+		if (ENTRY_TRANSPORTS.includes(transport)) {
+			if (!op["entry"] || String(op["entry"]).trim().length === 0)
+				err(fieldAt("entry"), `${label}: transport が ${transport} なら entry（URL パターン / ペイロード識別子）が要る`);
+			if (direction !== "inbound")
+				err(fieldAt("direction"), `${label}: transport が ${transport} なら direction は inbound`);
+		} else if (op["entry"] !== undefined) {
+			err(fieldAt("entry"), `${label}: entry は ${ENTRY_TRANSPORTS.join(" / ")} 専用`);
+		}
+
+		//  エラー
+		const errs = op["errors"];
+		const codes = [];
+		if (errs !== undefined) {
+			if (!Array.isArray(errs)) err(fieldAt("errors"), `${label}: errors はシーケンスで書く`);
+			else
+				for (const e of errs) {
+					if (!isMap(e)) {
+						err(fieldAt("errors"), `${label}: errors の各項目はマップで書く`);
+						continue;
+					}
+					errorCount++;
+					const code = e["code"];
+					if (!code) err(fieldAt("errors"), `${label}: errors に code が無い`);
+					else {
+						codes.push(code);
+						if (shared.errorCodes && !(code in shared.errorCodes))
+							err(
+								fieldAt("errors"),
+								`${label}: エラーコード "${code}" が _shared/components.yaml の errorCodes に無い`,
+							);
+					}
+					if (!e["when"] || String(e["when"]).trim().length === 0)
+						err(fieldAt("errors"), `${label}: errors["${code}"] に when（発生条件 1 行）が無い`);
+					if (transport !== "http" && e["wire"] !== undefined)
+						err(fieldAt("errors"), `${label}: errors["${code}"] に wire があるが transport が http でない`);
+				}
+		}
+
+		//  権限を要求するなら、拒否されたときの経路が契約に無ければならない
+		const requires = op["requires"];
+		if (requires !== undefined) {
+			if (!Array.isArray(requires) || requires.some((r) => typeof r !== "string"))
+				err(fieldAt("requires"), `${label}: requires は文字列のシーケンスで書く`);
+			else if (!codes.includes(PERMISSION_CODE))
+				err(
+					fieldAt("requires"),
+					`${label}: requires を宣言しているのに errors に ${PERMISSION_CODE} が無い（拒否されたときの経路が契約に無い）`,
+				);
+		}
+
+		//  具体例（fixed のみ）。実装とテストがコピペできる粒度を要求する
+		const ex = op["examples"];
+		if (status === "fixed") {
+			if (!isMap(ex) || Object.keys(ex).length === 0) {
+				err(fieldAt("examples"), `${label}: fixed なのに examples が無い（正常 1 件＋異常 1 件以上の実値）`);
+			} else {
+				const cases = Object.entries(ex);
+				const ok = cases.filter(([, c]) => isMap(c) && c["error"] === undefined);
+				const ng = cases.filter(([, c]) => isMap(c) && c["error"] !== undefined);
+				if (ok.length === 0) err(fieldAt("examples"), `${label}: examples に正常系が無い`);
+				if (ng.length === 0) err(fieldAt("examples"), `${label}: examples に異常系（error: <code>）が無い`);
+				for (const [caseName, c] of ng)
+					if (!codes.includes(c["error"]))
+						err(
+							fieldAt("examples"),
+							`${label}: examples.${caseName} の error "${c["error"]}" がこの操作の errors に無い`,
+						);
+				//  例のキーが request の properties と噛み合っているか
+				const props = isMap(op["request"]) && isMap(op["request"]["properties"]) ? op["request"]["properties"] : null;
+				const required = isMap(op["request"]) && Array.isArray(op["request"]["required"]) ? op["request"]["required"] : [];
+				if (props)
+					for (const [caseName, c] of cases) {
+						if (!isMap(c) || !isMap(c["request"])) continue;
+						for (const k of Object.keys(c["request"]))
+							if (!(k in props))
+								err(fieldAt("examples"), `${label}: examples.${caseName}.request の "${k}" が request.properties に無い`);
+						for (const k of required)
+							if (!(k in c["request"]) && c["error"] === undefined)
+								err(fieldAt("examples"), `${label}: examples.${caseName}.request に必須の "${k}" が無い`);
+					}
+			}
+		}
+	}
+
+	checkRefs(file, text, at);
+	checkSentinels(file, text, status);
+	checkHygiene(file, text, "contract");
+	return { id, status, errorCount, text };
+}
+
+//  $ref の解決（相対ファイルの存在＋アンカー末尾キーの存在）
+function checkRefs(file, text, at) {
+	const lines = text.split(/\r?\n/);
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(/\$ref:\s*["']?([^"'\s]+)["']?/);
+		if (!m) continue;
+		const [path, anchor] = m[1].split("#");
 		let targetText = text;
 		if (path) {
 			const target = join(dirname(file), path);
 			if (!existsSync(target)) {
-				err(file, `$ref のファイルが無い: ${path}`);
+				err(at(i + 1), `$ref のファイルが無い: ${path}`);
 				continue;
 			}
 			targetText = readFileSync(target, "utf8");
 		}
-		if (anchor) {
-			const leaf = anchor.split("/").filter(Boolean).pop();
-			if (leaf && !new RegExp(`^\\s+${leaf}:`, "m").test(targetText))
-				err(file, `$ref のアンカーが見つからない: ${ref}`);
-		}
+		const leaf = (anchor || "").split("/").filter(Boolean).pop();
+		if (leaf && !new RegExp(`^\\s+${leaf}:`, "m").test(targetText))
+			err(at(i + 1), `$ref のアンカーが見つからない: ${m[1]}`);
 	}
+}
 
-	checkSentinels(file, text, status);
-	checkHygiene(file, text, "contract");
-
-	//  具体例（fixed のみ）
-	if (status === "fixed" && !/^\s+examples?:/m.test(text))
-		warn(file, `fixed なのに examples が無い（正常 1 件＋異常 1 件以上の実値を書く）`);
-
-	//  異常系レスポンスの行数相当（4xx/5xx キーの検出）
-	const errorResponses = (text.match(/^\s+["']?[45]\d\d["']?:/gm) || []).length;
-	return { id, status, errorResponses };
+//  --- 共有語彙 _shared/components.yaml ---
+function loadShared(docsDir) {
+	const file = join(docsDir, "specs", "_shared", "components.yaml");
+	if (!existsSync(file)) {
+		warn(file, `共有語彙 components.yaml が無い（テンプレート templates/develop/components.yaml 参照）`);
+		return { file, authSchemes: {}, errorCodes: {} };
+	}
+	const text = readFileSync(file, "utf8");
+	const { root, problems } = parseStrictYaml(text);
+	for (const p of problems) err(`${file}:${p.line}`, p.msg);
+	if ("components" in root && !("errorCodes" in root))
+		err(
+			file,
+			`旧フォーマット（OpenAPI components）の共有語彙を検出。/docs-migrate で authSchemes / errorCodes へ移行する`,
+		);
+	const authSchemes = isMap(root["authSchemes"]) ? root["authSchemes"] : root["authSchemes"] === null ? {} : null;
+	const errorCodes = isMap(root["errorCodes"]) ? root["errorCodes"] : null;
+	if (authSchemes === null) err(file, `"authSchemes" が無い（使わないなら authSchemes: {} と書く）`);
+	if (errorCodes === null) err(file, `"errorCodes" が無い（契約の errors[].code はここに閉じる）`);
+	return { file, authSchemes: authSchemes || {}, errorCodes: errorCodes || {} };
 }
 
 //  --- PRD / design（任意ファイル・warn 中心）---
@@ -521,9 +1005,10 @@ function loadModel(docsDir) {
 	const ledgerFile = join(specsRoot, "specs.md");
 	const fmt = deriveSpecFormat();
 	const xKeys = deriveContractKeys();
+	const shared = loadShared(docsDir);
 
 	const specs = new Map(); //  id -> { file, dir, status, inputs, statesText }
-	const contracts = new Map(); //  id -> { file, status, errorResponses }
+	const contracts = new Map(); //  id -> { file, status, errorCount, text }
 	let ledger = null;
 
 	//  機能ディレクトリの走査（F-* のみ。specs.md / _shared は自然に対象外）
@@ -553,10 +1038,18 @@ function loadModel(docsDir) {
 			else specs.set(id, { file: specFile, dir, ...res });
 		}
 
-		const contractFile = join(dirPath, "api-contract.yaml");
+		const contractFile = join(dirPath, "contract.yaml");
+		const legacyFile = join(dirPath, "api-contract.yaml");
 		if (existsSync(contractFile)) {
-			const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), dirId, xKeys);
+			const c = validateContract(contractFile, readFileSync(contractFile, "utf8"), dirId, xKeys, shared);
 			if (c.id) contracts.set(c.id, { file: contractFile, ...c });
+			if (existsSync(legacyFile))
+				err(legacyFile, `contract.yaml と api-contract.yaml が両方ある（旧ファイルは git rm する）`);
+		} else if (existsSync(legacyFile)) {
+			err(
+				legacyFile,
+				`旧フォーマットの契約が残っている（node .claude/tools/spec-lint/spec-lint.mjs convert --write で変換し contract.yaml に置き換える）`,
+			);
 		}
 	}
 
@@ -571,7 +1064,7 @@ function loadModel(docsDir) {
 		warn(ledgerFile, "台帳 specs.md が無い（テンプレート templates/develop/specs.md 参照）");
 	}
 
-	return { specs, contracts, ledger, specsRoot, ledgerFile };
+	return { specs, contracts, ledger, specsRoot, ledgerFile, shared };
 }
 
 function crossChecks(model) {
@@ -606,7 +1099,7 @@ function crossChecks(model) {
 	//  契約カバレッジ: spec が fixed（＝実装に進んでよい）なのに契約が無い機能を可視化
 	for (const [id, spec] of specs) {
 		if (spec.status === "fixed" && !contracts.has(id))
-			warn(spec.file, `${id}: spec が fixed だが api-contract.yaml が無い`);
+			warn(spec.file, `${id}: spec が fixed だが contract.yaml が無い`);
 	}
 
 	//  contract ↔ spec（親 draft に fixed 契約は不可・入出力の相互整合）
@@ -625,7 +1118,7 @@ function crossChecks(model) {
 //  構造整合オラクル相当（ヒューリスティック・warn）:
 //  機能詳細の入力名が契約本文に現れるか／異常状態に異常レスポンスが対応するか。
 function crossConsistency(id, spec, c) {
-	const contractText = readFileSync(c.file, "utf8").toLowerCase();
+	const contractText = (c.text || "").toLowerCase();
 	for (const raw of spec.inputs) {
 		const n = normName(raw);
 		if (!n) continue;
@@ -633,8 +1126,8 @@ function crossConsistency(id, spec, c) {
 			warn(c.file, `${id}: 機能詳細の入力 "${raw}" が契約に見当たらない`);
 	}
 	const hasAbnormalState = /error|権限|境界/.test(spec.statesText);
-	if (hasAbnormalState && c.errorResponses === 0)
-		warn(c.file, `${id}: 機能詳細に異常状態があるが契約に 4xx/5xx レスポンスが無い`);
+	if (hasAbnormalState && c.errorCount === 0)
+		warn(c.file, `${id}: 機能詳細に異常状態があるが契約に errors が 1 件も無い`);
 }
 
 function cmdValidate(docsDir) {
@@ -677,10 +1170,16 @@ function gateFeature(docsDir, id) {
 	if (spec["ステータス"] !== "fixed")
 		err("gate", `${id}: spec が fixed でない（draft のまま実装しない）`);
 	//  契約は「存在し、かつ fixed」を要求する（契約なしのまま実装が進む事故を断つ）
-	const contractFile = join(dir, "api-contract.yaml");
-	if (!existsSync(contractFile))
-		err("gate", `${id}: 契約が無い（${basename(dir)}/api-contract.yaml を作り fixed にする）`);
-	else if (topLevelYamlKeys(readFileSync(contractFile, "utf8"))["x-status"] !== "fixed")
+	const contractFile = join(dir, "contract.yaml");
+	if (!existsSync(contractFile)) {
+		const legacy = join(dir, "api-contract.yaml");
+		if (existsSync(legacy))
+			err("gate", `${id}: 契約が旧フォーマットのまま（spec-lint convert --write で contract.yaml へ移行する）`);
+		else err("gate", `${id}: 契約が無い（${basename(dir)}/contract.yaml を作り fixed にする）`);
+		return;
+	}
+	const { root } = parseStrictYaml(readFileSync(contractFile, "utf8"));
+	if (root["x-status"] !== "fixed")
 		err("gate", `${id}: 契約が fixed でない（draft のまま実装しない）`);
 }
 
@@ -708,6 +1207,291 @@ function cmdGate(docsDir, opts) {
 	return errors.length > 0 ? 1 : 0;
 }
 
+//  --- convert コマンド（旧 OpenAPI 契約 → 新フォーマットの機械変換）---
+//
+//  AI に読ませて書き直させるのではなく機械的に写す。写せないもの
+//  （owned の判別・description の行き先）は推測せず、要確認として列挙する。
+
+const HTTP_METHODS = ["get", "post", "put", "patch", "delete", "head", "options"];
+const STATUS_TO_CODE = { 400: "INVALID_INPUT", 401: "FORBIDDEN", 403: "FORBIDDEN", 404: "NOT_FOUND" };
+
+//  厳格サブセットの範囲で YAML を書き出す
+function emitYaml(value, indent = 0) {
+	const pad = " ".repeat(indent);
+	if (Array.isArray(value)) {
+		if (value.length === 0) return "[]";
+		return value
+			.map((v) => {
+				if (v !== null && typeof v === "object") {
+					const inner = emitYaml(v, indent + 2);
+					return `${pad}- ${inner.slice(indent + 2)}`;
+				}
+				return `${pad}- ${emitScalar(v)}`;
+			})
+			.join("\n");
+	}
+	if (value !== null && typeof value === "object") {
+		const keys = Object.keys(value);
+		if (keys.length === 0) return "{}";
+		return keys
+			.map((k) => {
+				const v = value[k];
+				if (v !== null && typeof v === "object" && (Array.isArray(v) ? v.length : Object.keys(v).length))
+					return `${pad}${k}:\n${emitYaml(v, indent + 2)}`;
+				if (v !== null && typeof v === "object") return `${pad}${k}: ${Array.isArray(v) ? "[]" : "{}"}`;
+				return `${pad}${k}: ${emitScalar(v)}`;
+			})
+			.join("\n");
+	}
+	return `${pad}${emitScalar(value)}`;
+}
+
+function emitScalar(v) {
+	if (v === null || v === undefined) return "null";
+	if (typeof v === "boolean" || typeof v === "number") return String(v);
+	const s = String(v);
+	if (s === "") return '""';
+	if (/^[-?:,[\]{}#&*!|>'"%@`]/.test(s) || /:\s/.test(s) || /\s#/.test(s) || /^\s|\s$/.test(s))
+		return `"${s.replace(/"/g, '\\"')}"`;
+	return s;
+}
+
+//  parameters（path / query）と requestBody を 1 つの request にまとめる
+function buildRequest(op, notes, label) {
+	const props = {};
+	const required = [];
+	for (const p of op["parameters"] || []) {
+		if (!isMap(p) || !p["name"]) continue;
+		props[p["name"]] = p["schema"] || { type: "string" };
+		if (p["required"] === true) required.push(p["name"]);
+	}
+	const body = isMap(op["requestBody"]) ? firstJsonSchema(op["requestBody"]["content"]) : null;
+	if (body && isMap(body["properties"])) {
+		Object.assign(props, body["properties"]);
+		for (const r of body["required"] || []) required.push(r);
+	} else if (body) {
+		notes.push(`${label}: requestBody のスキーマが object でないため request をそのまま写した（要確認）`);
+		return body;
+	}
+	if (Object.keys(props).length === 0) return undefined;
+	const out = { type: "object" };
+	if (required.length) out.required = [...new Set(required)];
+	out.properties = props;
+	return out;
+}
+
+function firstJsonSchema(content) {
+	if (!isMap(content)) return null;
+	const json = content["application/json"];
+	if (isMap(json) && json["schema"]) return json["schema"];
+	for (const k of Object.keys(content))
+		if (isMap(content[k]) && content[k]["schema"]) return content[k]["schema"];
+	return null;
+}
+
+function firstExampleValue(container) {
+	if (!isMap(container)) return null;
+	const ex = container["examples"];
+	if (!isMap(ex)) return null;
+	for (const k of Object.keys(ex)) if (isMap(ex[k]) && "value" in ex[k]) return ex[k]["value"];
+	return null;
+}
+
+function convertContractDoc(root, notes, featureLabel) {
+	const out = {};
+	for (const k of ["x-feature-id", "x-status", "x-spec", "x-updated"])
+		if (root[k] !== undefined) out[k] = root[k];
+
+	const rootSecurity = root["security"];
+	const operations = {};
+	const paths = isMap(root["paths"]) ? root["paths"] : {};
+	for (const path of Object.keys(paths)) {
+		const item = paths[path];
+		if (!isMap(item)) continue;
+		for (const method of HTTP_METHODS) {
+			const op = item[method];
+			if (!isMap(op)) continue;
+			const name =
+				op["operationId"] ||
+				`${method}${path.replace(/[^A-Za-z0-9]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))}`;
+			const label = `${featureLabel} ${name}`;
+
+			//  auth: security が [] なら none、名前があればその名前、未指定はルートを継ぐ
+			const sec = op["security"] !== undefined ? op["security"] : rootSecurity;
+			let auth = "none";
+			if (Array.isArray(sec) && sec.length > 0 && isMap(sec[0])) auth = Object.keys(sec[0])[0] || "none";
+			else if (sec === undefined) notes.push(`${label}: security の指定が無かったため auth: none とした（要確認）`);
+
+			const responses = isMap(op["responses"]) ? op["responses"] : {};
+			const successKey = Object.keys(responses).find((k) => /^2\d\d$/.test(String(k)));
+			const converted = {
+				transport: "http",
+				direction: "outbound",
+				owned: true,
+				auth,
+				summary: op["summary"] || "<何をするか 1 行>",
+				wire: { method: method.toUpperCase(), path, success: successKey ? Number(successKey) : 200 },
+			};
+			if (!op["summary"]) notes.push(`${label}: summary が無いためプレースホルダを置いた`);
+
+			const request = buildRequest(op, notes, label);
+			if (request) converted.request = request;
+			const response = successKey ? firstJsonSchema(responses[successKey]?.["content"]) : null;
+			if (response) converted.response = response;
+
+			//  異常系: examples の code を最優先、無ければステータスから引く
+			const errors = [];
+			const failureExamples = [];
+			for (const statusKey of Object.keys(responses)) {
+				if (!/^[45]\d\d$/.test(String(statusKey))) continue;
+				const res = responses[statusKey];
+				const sample = firstExampleValue(isMap(res) ? firstJsonContent(res["content"]) : null);
+				let code = isMap(sample) && sample["code"] ? sample["code"] : STATUS_TO_CODE[Number(statusKey)];
+				if (!code) {
+					code = "INVALID_INPUT";
+					notes.push(`${label}: ${statusKey} のエラーコードを判別できず INVALID_INPUT とした（要確認）`);
+				}
+				errors.push({
+					code,
+					when: (isMap(res) && res["description"]) || "<発生条件を 1 行>",
+					wire: { status: Number(statusKey) },
+				});
+				if (isMap(sample)) failureExamples.push({ code, sample });
+			}
+			if (errors.length) converted.errors = errors;
+
+			//  具体例
+			const examples = {};
+			const reqExample = firstExampleValue(isMap(op["requestBody"]) ? firstJsonContent(op["requestBody"]["content"]) : null);
+			const resExample = successKey ? firstExampleValue(firstJsonContent(responses[successKey]?.["content"])) : null;
+			if (reqExample !== null || resExample !== null) {
+				examples.ok = {};
+				if (reqExample !== null) examples.ok.request = reqExample;
+				if (resExample !== null) examples.ok.response = resExample;
+			}
+			failureExamples.forEach((fx, i) => {
+				examples[`ng${i + 1}`] = { error: fx.code };
+			});
+			if (Object.keys(examples).length) converted.examples = examples;
+			if (root["x-status"] === "fixed" && !Object.keys(examples).some((k) => k.startsWith("ng")))
+				notes.push(`${label}: 異常系の example が無い（fixed には正常 1 件＋異常 1 件が要る）`);
+
+			if (op["description"]) notes.push(`${label}: operation.description を落とした（意味と規則は spec.md）`);
+			operations[name] = converted;
+		}
+	}
+	out.operations = operations;
+	if (Object.keys(operations).length === 0)
+		notes.push(`${featureLabel}: 操作が 1 つも無い（境界ゼロなら x-no-boundary に理由を書く）`);
+	notes.push(`${featureLabel}: owned は全件 true で置いた（他社 API を叩く操作は false + source に直す）`);
+	return out;
+}
+
+function firstJsonContent(content) {
+	if (!isMap(content)) return null;
+	return content["application/json"] || content[Object.keys(content)[0]] || null;
+}
+
+function convertSharedDoc(root, notes) {
+	const comp = isMap(root["components"]) ? root["components"] : {};
+	const out = { authSchemes: {}, errorCodes: {}, schemas: {} };
+	for (const [name, def] of Object.entries(comp["securitySchemes"] || {})) {
+		if (!isMap(def)) continue;
+		if (def["type"] === "apiKey" && def["in"] === "cookie") out.authSchemes[name] = { kind: "cookie", name: def["name"] || name };
+		else if (def["type"] === "apiKey") out.authSchemes[name] = { kind: "header", name: def["name"] || name };
+		else if (def["type"] === "http") out.authSchemes[name] = { kind: "token", scheme: def["scheme"] === "bearer" ? "Bearer" : def["scheme"] || "Bearer" };
+		else {
+			out.authSchemes[name] = { kind: "token", scheme: "Bearer" };
+			notes.push(`_shared: 認証スキーム "${name}"（type: ${def["type"]}）を token として写した（要確認）`);
+		}
+	}
+	const schemas = isMap(comp["schemas"]) ? comp["schemas"] : {};
+	const codeEnum = isMap(schemas["ErrorCode"]) && Array.isArray(schemas["ErrorCode"]["enum"]) ? schemas["ErrorCode"]["enum"] : [];
+	for (const c of codeEnum) out.errorCodes[c] = "<このコードの意味を 1 行>";
+	if (codeEnum.length > 0)
+		notes.push(`_shared: errorCodes の意味（値）はプレースホルダのまま。1 行ずつ埋める`);
+	if (codeEnum.length === 0) notes.push(`_shared: ErrorCode の enum が見つからず errorCodes を空にした（契約の code を集めて埋める）`);
+	for (const [name, def] of Object.entries(schemas)) {
+		if (name === "ErrorCode" || name === "Error") continue;
+		out.schemas[name] = def;
+	}
+	notes.push(`_shared: Error / ErrorCode スキーマは新フォーマットの errorCodes に統合したため落とした`);
+	return out;
+}
+
+function cmdConvert(docsDir, opts) {
+	const specsRoot = join(docsDir, "specs");
+	if (!existsSync(specsRoot)) {
+		console.error(`spec-lint convert: ${specsRoot} が無い`);
+		return 2;
+	}
+	const notes = [];
+	const planned = [];
+
+	const sharedFile = join(specsRoot, "_shared", "components.yaml");
+	if (existsSync(sharedFile)) {
+		const { root, problems } = parseStrictYaml(readFileSync(sharedFile, "utf8"), { lenient: true });
+		for (const p of problems) console.warn(`  warn  ${sharedFile}:${p.line}: ${p.msg}`);
+		if ("components" in root) {
+			const header = [
+				"# docs/specs/_shared/components.yaml — 契約の共有語彙（$ref 先）",
+				"# 2 機能以上で使うものだけを置く（認証スキーム・エラーコード・共有 DTO）",
+				"# 書き込むのは orchestrator のみ。producer は追記せず、追加したい語彙を報告する",
+				"",
+			].join("\n");
+			planned.push({ file: sharedFile, text: `${header}\n${emitYaml(convertSharedDoc(root, notes))}\n` });
+		} else {
+			notes.push(`_shared: 既に新フォーマット（components が無い）のため変換しない`);
+		}
+	}
+
+	for (const dir of readdirSync(specsRoot, { withFileTypes: true })
+		.filter((d) => d.isDirectory() && d.name.startsWith("F-"))
+		.map((d) => d.name)
+		.sort()) {
+		const legacy = join(specsRoot, dir, "api-contract.yaml");
+		if (!existsSync(legacy)) continue;
+		const { root, problems } = parseStrictYaml(readFileSync(legacy, "utf8"), { lenient: true });
+		for (const p of problems) console.warn(`  warn  ${legacy}:${p.line}: ${p.msg}`);
+		const header = [
+			"# 機能の境界契約（1 機能 1 ファイル）",
+			"# 同じディレクトリの spec.md と対で 1 機能の MIS（境界の形だけを持つ。振る舞いと規則は spec）",
+			"# 判定は node .claude/tools/spec-lint/spec-lint.mjs validate（形式の理由は docs/adr/0001, 0002）",
+			"",
+		].join("\n");
+		planned.push({
+			file: join(specsRoot, dir, "contract.yaml"),
+			from: legacy,
+			text: `${header}\n${emitYaml(convertContractDoc(root, notes, dir))}\n`,
+		});
+	}
+
+	if (planned.length === 0) {
+		console.log("spec-lint convert: 変換対象が無い（旧フォーマットの契約は見つからなかった）");
+		return 0;
+	}
+
+	for (const p of planned) {
+		if (opts.write) {
+			writeFileSync(p.file, p.text);
+			console.log(`  書いた  ${p.file}${p.from ? `（元: ${p.from}）` : ""}`);
+		} else {
+			console.log(`  書く予定  ${p.file}${p.from ? `（元: ${p.from}）` : ""}`);
+		}
+	}
+	console.log("");
+	console.log("要確認（機械では埋められなかったもの）:");
+	for (const n of notes) console.log(`  - ${n}`);
+	console.log("");
+	if (opts.write) {
+		console.log("旧ファイルはこのコマンドでは消さない。差分を確認してから git rm する:");
+		for (const p of planned) if (p.from) console.log(`  git rm ${p.from}`);
+	} else {
+		console.log("実際に書くには --write を付ける。");
+	}
+	return 0;
+}
+
 //  --- 出力 ---
 function report() {
 	for (const w of warns) console.warn(`  warn  ${w.file}: ${w.msg}`);
@@ -721,6 +1505,7 @@ function parseArgs(argv) {
 	const opts = { docs: "docs" };
 	for (let i = 0; i < argv.length; i++) {
 		if (argv[i] === "--docs") opts.docs = argv[++i];
+		else if (argv[i] === "--write") opts.write = true;
 		else if (argv[i] === "--message") opts.message = argv[++i];
 		else if (argv[i] === "--feature") opts.feature = argv[++i];
 	}
@@ -732,7 +1517,10 @@ function main() {
 	const opts = parseArgs(rest);
 	if (cmd === "validate" || cmd === undefined) process.exit(cmdValidate(opts.docs));
 	if (cmd === "gate") process.exit(cmdGate(opts.docs, opts));
-	console.error("usage: spec-lint.mjs validate|gate [--docs docs] [--message f] [--feature F-001]");
+	if (cmd === "convert") process.exit(cmdConvert(opts.docs, opts));
+	console.error(
+		"usage: spec-lint.mjs validate|gate|convert [--docs docs] [--message f] [--feature F-001] [--write]",
+	);
 	process.exit(2);
 }
 
