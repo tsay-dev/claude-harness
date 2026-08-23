@@ -137,7 +137,8 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
    # or
    .claude/tools/cursor-sync/sync.sh .claude .cursor
    ```
-5. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags).
+5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/NNNN-YYYY-MM-DD-title.md` (the format is authoritative in `agents/develop/adr-writer.md`). This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
+6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
 
 ---
 
@@ -150,7 +151,7 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no hardcoded `sonnet`)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
 | templates | One artifact, one template? Are the placeholders unified as `F-000` / `YYYY-MM-DD` / `<...>`? Is spec-lint's derivation (required sections, required `x-` keys) unbroken? |
-| spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? The format is derived from the templates and never restated on the lint side |
+| spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? For spec.md the format is derived from the template and never restated on the lint side. **For the contract, the split is deliberate**: the required `x-` keys are still derived from `templates/develop/contract.yaml`, but the closed vocabularies (`transport` / `direction` values) live in the lint, because only executable code can enforce them — the template's comment documents them and is not a second authority |
 | gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs and `.claude` unblocked? Does the block reason point at develop skill §2's return point? |
 | init.sh | Do the help for install / update / cursor and the README agree? |
 

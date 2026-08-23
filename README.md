@@ -150,7 +150,7 @@ claude-harness/
       │                                            #   （準拠の定義は持たない＝spec-lint とテンプレートを正として回すだけ）
       │
       ├── templates/                        # 📄 docs 成果物のテンプレート（書式の SSOT）
-      │    └── develop/                            # PRD / design / specs 台帳 / spec / api-contract(OpenAPI) / _shared
+      │    └── develop/                            # PRD / design / specs 台帳 / spec / contract(境界契約) / _shared
       │                                            #   producer が雛形に使い、spec-lint が必須項目を導出する（書式改定は1箇所）
       │
       └── tools/                            # 🔧 実行アセット（バリデータ・生成器）
