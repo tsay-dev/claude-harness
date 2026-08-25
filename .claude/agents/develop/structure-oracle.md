@@ -37,7 +37,7 @@ Your job is not to confirm agreement. **It is to hunt down inconsistencies.**
 A machine can tell whether the contract is well-formed. It cannot tell whether it is **the right boundary**. Expose every one of the following:
 
 - A UC or REQ that references an entity that does not exist.
-- A state in the state × event table that no data model can hold, or a BR whose `enforced_at` names the database while the DB design carries no such constraint (and the reverse: a constraint no BR explains).
+- A state in the state × event table that no data model can hold, or a schema constraint annotated `@implements BR-nnn` that does not actually enforce that rule (trace-check C13 sees only that the annotation exists), or a constraint no BR explains.
 - A UI state that cannot be derived from any data model.
 - A cell of the state × event table, or a row of the exception sweep, that the structure cannot express.
 - **An operation whose shape is well-formed but cannot actually satisfy the REQ sentences** (the response carries fields no requirement observes, or lacks one a requirement does).

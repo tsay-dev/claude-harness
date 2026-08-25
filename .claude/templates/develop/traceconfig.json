@@ -1,5 +1,5 @@
 {
-  "_comment": "Placed at the host project root as traceconfig.json. Read by .claude/tools/trace-check. The orchestrator seeds it once; the host edits source/tests/layering to match its own layout. Omit the contract block when the implementation has no single error-code source (C7 then skips).",
+  "_comment": "Placed at the host project root as traceconfig.json. Read by .claude/tools/trace-check. The orchestrator seeds it once; the host edits source/tests/layering to match its own layout. Omit the contract block when the implementation has no single error-code source (C7 then skips). The schema block names the DB design's native source (migrations / schema.prisma / model files); omit it when the app owns no persisted data (C13 then skips).",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -19,12 +19,41 @@
     "verification_global": "docs/verification/GLOBAL.md",
     "shared": "docs/_shared/components.yaml"
   },
-  "source": { "dirs": ["src"], "extensions": [".ts"] },
-  "tests": { "dirs": ["tests"], "extensions": [".ts"] },
+  "source": {
+    "dirs": [
+      "src"
+    ],
+    "extensions": [
+      ".ts"
+    ]
+  },
+  "tests": {
+    "dirs": [
+      "tests"
+    ],
+    "extensions": [
+      ".ts"
+    ]
+  },
+  "schema": {
+    "files": [
+      "prisma/schema.prisma"
+    ]
+  },
   "layering": {
     "root": "src",
-    "forbidden": { "domain": ["usecase", "infra"], "usecase": ["infra"] },
-    "import_patterns": ["^\\s*import\\s.*from\\s+['\"][^'\"]*/{layer}(/|['\"])"]
+    "forbidden": {
+      "domain": [
+        "usecase",
+        "infra"
+      ],
+      "usecase": [
+        "infra"
+      ]
+    },
+    "import_patterns": [
+      "^\\s*import\\s.*from\\s+['\"][^'\"]*/{layer}(/|['\"])"
+    ]
   },
   "contract": {
     "error_source": "src/domain/errors.ts",

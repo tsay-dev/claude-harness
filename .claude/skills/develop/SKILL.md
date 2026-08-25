@@ -111,12 +111,12 @@ Machine verification (spec-lint, trace-check, the optional gate-hook) may act as
 | Boundary contract (HTTP / SDK / local persistence / deeplink / push / device) | `…/UC-nnn-<slug>/contract.yaml` | `contract-author` (🤖 → `fixed` by the orchestrator) |
 | Shared contract vocabulary (`$ref` targets) | `docs/_shared/components.yaml` | **orchestrator only** (producers return requests as reports) |
 | Project-wide "not verified" ranges | `docs/verification/GLOBAL.md` | `test-designer` |
-| DB design | **the location and format the framework/project defines** (§6; absent that, a draft in `docs/db/schema.md`) | `db-designer` + framework rules |
+| DB design | **the host's native schema source only** (the file migrations are generated from, or the migration directory — declared in the host `CLAUDE.md` or `traceconfig.json` `schema.files`; never a docs draft, R-102). Rule-enforcing constraints carry `@implements BR-nnn` (trace-check C13) | `db-designer` + framework rules |
 | Design Doc (the How, in present tense; optional) | `docs/design.md` | human (🙋 orchestrator may ghostwrite; reasons go to ADR) |
 | ADR | `docs/adr/ADR-nnnn-<slug>.md` | `adr-writer` |
 | Trace configuration | `traceconfig.json` at the host root | orchestrator seeds it once from the template; the host maintains it |
 
-- **Do not pin the DB design's location or format on the develop side.** If a native format exists that migrations are generated from, treat it as the single SSOT and do not transcribe it into a second copy.
+- **Do not pin the DB design's location or format on the develop side, and never fall back to a docs draft.** The native source the host declares is the single SSOT; nothing is transcribed into a second copy (an ER overview, if wanted, is generated and not committed). If the host has not declared one, ask the human — a slice that owns persisted data cannot proceed without it.
 - **Persisting progress (the phase)**: the `phase:` line in each `UC.md` frontmatter (`定義`→`構造`→`実装`→`検証`→`完了`) is authoritative, and **the orchestrator advances it at every phase transition** (editing that one line does not violate "write no code"; no producer ever touches it). There is no ledger file — `trace-check --index` renders the map on demand.
 - **Statuses**: docs nodes go `draft → active → withdrawn` (`active` = a human approved it; the singletons use `frozen` / `living`), the contract goes `draft → fixed`. **The orchestrator performs every status transition**; producers return drafts.
 
@@ -148,7 +148,7 @@ Once judged high-risk, pick the single riskiest cross-UC path and hand it to `sk
 
 - Build the DB and the boundary contract that correspond to the use cases, and make the references consistent. **Do not produce a UI design document** (screens and UI states are already in the state × event tables; the appearance is stood up in Phase4 and eyeballed by a human).
 - **Launch order**:
-  1. `db-designer` (🙋) — draft → settled on human confirmation. Pass the UC directories, the BRs whose `enforced_at` names the database, and the glossary. **Skip it when the slice owns no data model** (a UC that only consumes a third party's API or a device capability): its absence is not a reason to hold the contract
+  1. `db-designer` (🙋) — draft → settled on human confirmation. Pass the UC directories, the BRs whose `enforced_at` names the database, the glossary, and **the schema source path**. Its **guarantee-point proposals** (which enforcement point is the SSOT of a rule, by asymmetry) are presented at the same gate; on approval the orchestrator has `requirement-definer` set the BR's `enforced_at` if it changed and delegates the record to `adr-writer`. **Skip it when the slice owns no persisted data** (a UC that only consumes a third party's API or a device capability): its absence is not a reason to hold the contract. Local persistence on a device (SwiftData / SQLite / Core Data) **is** persisted data — the model file is the schema source
   2. **Seeding `_shared` (orchestrator, inline)** — if `docs/_shared/components.yaml` does not exist, create it from the template (`.claude/templates/develop/components.yaml`) and populate the initial vocabulary of shared DTOs and error codes from the settled DB
   3. `contract-author` (🤖) — derive the contract from the active UC directory + settled DB (`draft`). With multiple UCs, run concurrently per UC (pass every Task the identical paths for `_shared/components.yaml` and the existing contracts). **Requests to add to `_shared` are never written by producers; receive them as reports, apply them yourself, then start the next round**
   4. `structure-oracle` (🔴) — independent judgment in a separate context. Iterate to zero inconsistencies (round limit in §4). **Its mission is the semantic half only** — the format, the transport-field agreement, the vocabulary resolution, the example integrity (spec-lint), and placement / dead rules / duplicate IDs (trace-check) are already decided by machine, so do not have it re-read contracts to confirm those
@@ -278,7 +278,7 @@ At every launch, **launch simultaneously if all 4 conditions below hold** (seria
 | `usecase-definer` | P1, per UC (∥ across UCs) | the goal's `GOAL.md`, actors, glossary, a neighboring UC directory, existing BRs; which UC(s) to write | 🙋 human gate |
 | `requirement-definer` | P1, per active UC (∥ across UCs) | the UC directory, the reserved REQ IDs, glossary, existing BRs, vision (for intent) | 🙋 human gate |
 | `skeleton-runner` | P2 (only when high-risk) | target subsystem, the single riskiest path, reference structure | 🔬 probe (throwaway) |
-| `db-designer` | P3 | the UC directories, the BRs enforced at the DB, glossary, existing schema, framework DB rules path (if any) | 🙋 human gate |
+| `db-designer` | P3 | the UC directories, the BRs enforced at the DB, glossary, **the schema source path** (host `CLAUDE.md` / `traceconfig.json` `schema.files`), framework DB rules path (if any) | 🙋 human gate |
 | `contract-author` | P3 | the active UC directory, settled DB, **shared-vocabulary paths** (`_shared/components.yaml`, existing contracts) | 🤖 machine loop |
 | `structure-oracle` | after P3 | the artifacts to judge (on re-judgment: previous findings + changed artifacts) | 🔴 independent judgment |
 | `test-designer` | P4, before implementation | the UC directory (UC, REQs, contract), the BRs, **assigned track = `backend logic`**, framework testing-rules paths (BE bundle) | 🤖 ×1 (BE only; also writes each REQ's `## 検証方針`) |
@@ -310,7 +310,8 @@ Every subagent returns by stopping and reporting. **The single branching criteri
 | drafts + points to confirm (vision, glossary, actors, goals, NFRs) | domain-definer | 🙋 present → statuses set on approval / relaunch on change requests |
 | `UC.md` draft + reserved REQ IDs + `?` cells / BR候補 | usecase-definer | 🙋 present → `active` on approval → launch requirement-definer on the reserved IDs / relaunch on change requests. A `?` cell is a hole: settle it with the human before approval |
 | REQ / BR drafts + points to confirm | requirement-definer | 🙋 present → `active` on approval / relaunch on change requests. A BR that binds already-active UCs → re-verify those UCs' consistency (§4 rework) |
-| draft + points to confirm (DB design) | db-designer | 🙋 present → settled on approval / relaunch on change requests |
+| draft + guarantee-point proposals + points to confirm (DB design) | db-designer | 🙋 present → settled on approval / relaunch on change requests. An approved guarantee point → `adr-writer` (and `requirement-definer` if a BR's `enforced_at` changes) |
+| no schema source declared | db-designer | 🙋 ask the human where the native schema lives (never accept a docs draft as the answer); record it in the host `CLAUDE.md` / `traceconfig.json` |
 | appearance + request to confirm | frontend-ui-implementer | 🙋 present → settled on approval / re-implement on change requests |
 | cannot settle the contract (caused by a defect in the UC, a REQ, a BR, or the DB) | contract-author | 🙋 send back to the causing human oracle → re-derive the contract after approval |
 | a contract addendum (derivable from the approved SSOT + DB) | contract-author | 🤖 relaunch to fill it in, then structure-oracle re-judges |
@@ -355,7 +356,7 @@ Rules (leaves) are never inlined; **passing paths** in the Task input is authori
 | the definers (`domain` / `usecase` / `requirement`), `adr-writer`, and `test-designer` for the policy section | the paths of the **docs files** created or edited in that launch (under `docs/`) |
 | implementers (`frontend-ui` / `frontend-logic` / `backend-logic`) | the paths of the **production code** created or edited in that slice |
 | `test-designer` (**only for tracks that are launched**) | the paths of the **test files** created in that slice |
-| `db-designer` | the path of the **DB design SSOT** (the docs location table in §3) |
+| `db-designer` | the path of the **schema source** (the host's native DB design, §3) |
 
 - **Never decide the destination from a leaf's file name.** Let matching alone settle it.
 - **When nothing matches at all, the narrowing is probably wrong.** Pass the leaves directly under the scene **plus every leaf of that framework** (too many beats too few — code written in ignorance of a rule cannot be caught in verification). Do the same when the paths to be written cannot be determined in advance.

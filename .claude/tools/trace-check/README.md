@@ -5,10 +5,10 @@ the docs SSOT (GOAL → UC → REQ, BR) and the code (tests, implementation): co
 layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_check.py` (why the port:
 `docs/adr/ADR-0003`).
 
-- **What it verifies**: the 12 checks below. **Format and lifecycle** (frontmatter, sections, status
+- **What it verifies**: the 13 checks below. **Format and lifecycle** (frontmatter, sections, status
   vocabularies, the contract's structure) are `../spec-lint/`'s job; the two tools do not overlap
 - **What it reads**: `traceconfig.json` at the host project root (seeded once from
-  `.claude/templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `layering` / `contract`).
+  `.claude/templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
   Annotations are found by regex on every line (`covers_pattern` / `implements_pattern`), so any language works
 - **What it generates**: the coverage matrix (its report) and the whole-project index (`--index`). Both are
   derived, never committed (R-1003 / R-603)
@@ -26,7 +26,7 @@ node trace-check.mjs --only C9,C12                            # judge only these
 
 Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. Node only.
 
-## The 12 checks
+## The 13 checks
 
 | # | Fails when | Rule |
 | --- | --- | --- |
@@ -42,6 +42,7 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C10 | a declared partition class has no test, or an `active` REQ declares none (the lower bound) | R-1101 / R-1104 |
 | C11 | a test names no class, or an undeclared one (the upper bound on generated tests) | R-1102 / R-1103 |
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
+| C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
 
 Only `active` docs are subject to C1 / C2 / C8 / C10 — a `draft` REQ demands nothing yet, and a `withdrawn`
 one demands nothing any more. C11 applies to every test regardless.
@@ -62,10 +63,10 @@ project's health indicator.
 
 ## What green does and does not guarantee
 
-When the tests and these 12 checks are all green, the following holds mechanically: every active GOAL has a UC
+When the tests and these 13 checks are all green, the following holds mechanically: every active GOAL has a UC
 and every active REQ a test; every declared partition class has a test **and no test exists outside the
 policy**; every ID referenced from code and tests exists; no rule is dead; no ID is defined twice; placement
-agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation.
+agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation; every rule enforced at the database is annotated on a constraint in the schema source.
 
 What remains for review (R-901): whether the partition exhausts the input space, whether an assertion verifies
-the meaning of the EARS sentence, and whether the EARS sentence itself is right.
+the meaning of the EARS sentence, whether the EARS sentence itself is right, and whether a schema constraint annotated `@implements BR-nnn` really enforces that rule (C13 sees the annotation, not the semantics).

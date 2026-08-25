@@ -35,7 +35,7 @@ Read the templates `.claude/templates/develop/REQ.md` and `BR.md` and use them a
 
 ### The business rule
 
-- A BR holds **existence, intent, and `enforced_at`** — never its referrers (R-103; trace-check C4 derives them) and never a value that can be machine-readable (R-102). When the rule has a threshold, a limit, or an enumeration, write "値の SSOT は `<code / DB / schema path>`" and the intent; the value lives there. If it is enforced at several points, name which one is the SSOT by asymmetry (removing which one breaks correctness) and list "an ADR is needed" on the human's list.
+- A BR holds **existence, intent, and `enforced_at`** — never its referrers (R-103; trace-check C4 derives them) and never a value that can be machine-readable (R-102). When the rule has a threshold, a limit, or an enumeration, write "値の SSOT は `<code / DB / schema path>`" and the intent; the value lives there. If it can be enforced at several points (a domain check and a DB constraint, say), write the point you can read from the material as `enforced_at` and list it on the human's list as "guarantee point to be confirmed" — the DB designer proposes the SSOT of the guarantee by asymmetry (removing which one breaks correctness), a human approves, and an ADR records it. Never settle the asymmetry yourself.
 - **Intent connects to a KPI or a goal** (`**意図**: … KPI-nn …`).
 
 ### Discipline

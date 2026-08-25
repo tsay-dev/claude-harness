@@ -73,6 +73,7 @@ The one comment that always goes in. `trace-check` (`.claude/tools/trace-check/`
 
 - **Production code** that realizes a requirement, a rule, or a use case carries `@implements REQ-nnn` / `@implements BR-nnn` / `@implements UC-nnn` in the doc comment of the unit that realizes it (a use-case class, a rule function, the branch that enforces a check). Several IDs may share one line. **Write the ID only — never restate the requirement** (R-701; an ID that does not exist fails C5).
 - **Test code** carries `@covers REQ-nnn#class` — exactly one declared partition class per test (the placement per runner is in each framework's testing leaf; C10 / C11 check it).
+- **The schema source** (a migration, `schema.prisma`, a model file) carries `@implements BR-nnn` on the constraint that enforces a rule, in that format's comment syntax (`-- @implements BR-007`, `/// @implements BR-007`); C13 checks it for every BR enforced at the database.
 - These annotations are the current spec's address, not history: when a requirement is withdrawn or moved, update or remove the annotation in the same change.
 
 ---

@@ -29,6 +29,8 @@
 //    C10  宣言された全分割クラスに 1 件以上のテストがあるか（未検証クラス / クラス未宣言）
 //    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
+//    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
+//         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは structure-oracle の判断に残る）
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
@@ -244,12 +246,24 @@ function collectTestCoverage(cfg, coversRe) {
 	return coverage;
 }
 
-function collectSourceAnnotations(cfg, implRe) {
+function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source")) {
 	const found = {}; //  id -> Set<file>
-	for (const path of iterFiles(cfg, "source"))
+	for (const path of files)
 		for (const m of read(path).matchAll(implRe)) (found[m[1]] ||= new Set()).add(rel(cfg, path));
 	return found;
 }
+
+//  スキーマ源（migration / schema.prisma / モデル定義）。R-102 で DB 設計の SSOT は native 形式にあり、docs には無い
+function schemaFiles(cfg) {
+	const s = cfg.schema;
+	if (!s) return null;
+	const out = [];
+	for (const f of s.files || []) if (existsSync(join(cfg._root, f))) out.push(join(cfg._root, f));
+	for (const d of s.dirs || []) out.push(...walk(join(cfg._root, d), s.extensions || [".sql", ".prisma"]));
+	return out;
+}
+
+const DB_ENFORCED_RE = /\b(database|db)\b/i;
 
 function checkLayering(cfg) {
 	const lay = cfg.layering;
@@ -315,7 +329,10 @@ function runChecks(cfg) {
 	const corpus = new Corpus(cfg);
 	const brs = definedInDir(p(cfg, "docs.rules_dir"));
 	const coverage = collectTestCoverage(cfg, coversRe);
+	const schema = schemaFiles(cfg);
+	const schemaImplements = schema ? collectSourceAnnotations(cfg, implRe, schema) : {};
 	const implementsMap = collectSourceAnnotations(cfg, implRe);
+	for (const [id, files] of Object.entries(schemaImplements)) for (const x of files) (implementsMap[id] ||= new Set()).add(x);
 
 	const reqTests = {}; //  req -> [where]
 	for (const c of coverage.values()) (reqTests[c.req] ||= []).push(...c.where);
@@ -360,6 +377,16 @@ function runChecks(cfg) {
 		if (c.klass === null) failures.push(`[C11] ${w}: クラス指定がない（@covers ${c.req}#<class> 形式にすること）`);
 		else if (!declared.includes(c.klass))
 			failures.push(`[C11] ${w}: 未宣言のクラス ${c.req}#${c.klass} を指している。テストを増やす前に検証方針へクラスを宣言すること（生成上限）`);
+	}
+
+	//  C13: DB で強制する規則にはスキーマ側の制約（@implements）が要る。schema 未設定なら判定しない
+	if (schema) {
+		for (const f of walk(p(cfg, "docs.rules_dir"), [".md"])) {
+			const fm = frontmatter(f);
+			if (!fm.id || fm.status === "withdrawn" || !DB_ENFORCED_RE.test(fm.enforced_at || "")) continue;
+			if (!schemaImplements[fm.id])
+				failures.push(`[C13] ${fm.id} は enforced_at に database を含むが、スキーマ源（${(cfg.schema.files || cfg.schema.dirs || []).join(", ")}）から @implements されていない（制約のコメントに @implements ${fm.id} を書く）`);
+		}
 	}
 
 	//  C12: 重複 ID（採番衝突）

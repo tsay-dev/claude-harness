@@ -72,7 +72,7 @@ Identical to the mainline (the format SSOT is `.claude/templates/develop/`).
 | Requirements (one EARS sentence each) + BRs | `…/UC-nnn-<slug>/REQ-nnn.md` / `docs/rules/BR-nnn.md` | `requirement-definer`; each REQ's `## 検証方針` by `test-designer` |
 | Boundary contract (the shape of what crosses the boundary) | `…/UC-nnn-<slug>/contract.yaml` | `contract-author` |
 | Shared contract vocabulary | `docs/_shared/components.yaml` | **orchestrator only** |
-| DB design | the location the framework/project defines (absent that, `docs/db/schema.md`) | `db-designer` (only when it changes) |
+| DB design | the host's native schema source only (`CLAUDE.md` / `traceconfig.json` `schema.files`; never a docs draft) | `db-designer` (only when it changes) |
 | ADR | `docs/adr/` | `adr-writer` (when a decision occurs) |
 
 ### Phase1: definition (SSOT)
@@ -146,7 +146,7 @@ The SSOT for their personas is `.claude/agents/develop/<name>.md`. Do not duplic
 | --- | --- | --- | --- |
 | `usecase-definer` | P1 | the goal's `GOAL.md`, actors, glossary, a neighboring UC directory, existing BRs; the one UC to write | 🙋 |
 | `requirement-definer` | P1 (after the UC is active) | the UC directory, the reserved REQ IDs, glossary, existing BRs | 🙋 |
-| `db-designer` | P3 (only when it changes) | the UC directory, the BRs enforced at the DB, glossary, existing schema, framework DB-design rules path (if any) | 🙋 |
+| `db-designer` | P3 (only when it changes) | the UC directory, the BRs enforced at the DB, glossary, the schema source path, framework DB-design rules path (if any) | 🙋 (guarantee-point proposals → ADR on approval) |
 | `contract-author` | P3 | the active UC directory, settled DB (if any), shared-vocabulary paths | 🤖 |
 | `test-designer` | before P4 | the UC directory, the BRs, **assigned track = `backend logic`**, framework testing-rules paths (BE bundle) | 🤖 ×1 (BE only; writes each REQ's `## 検証方針`) |
 | `frontend-ui-implementer` | P4 FE-1 | the UC directory, contract response, framework rules paths (**no UI Red tests are passed**) | 🙋 |

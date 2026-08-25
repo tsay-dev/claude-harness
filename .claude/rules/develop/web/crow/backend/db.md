@@ -15,7 +15,7 @@ paths:
 ## Location (where to write it)
 
 - **`db_design.txt`** (the path the crow project prescribes; the source of migrations).
-- **Do not use** develop's generic draft destinations (`docs/db/schema.md` and the like). In crow the native format is the SSOT.
+- **Never write a docs draft** (`docs/db/schema.md` and the like). In crow the native format is the SSOT, and the host declares it as `schema.files: ["…/db_design.txt"]` in `traceconfig.json` so that `trace-check` C13 can read the `@implements BR-nnn` comments on rule-enforcing definitions.
 
 ## Format (how to write it)
 

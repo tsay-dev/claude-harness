@@ -199,12 +199,13 @@ docs/
  ├── nfr/NFR-001.md …              # 閾値＋測定方法
  ├── adr/ADR-0001-<slug>.md …      # 決定記録（却下案つき。書き換えず supersede）
  ├── verification/GLOBAL.md        # 全体で検証しない範囲
- └── _shared/components.yaml       # 契約の共有語彙（authSchemes / errorCodes / schemas）
-traceconfig.json                   # trace-check の設定（ホスト直下）
+ ├── _shared/components.yaml       # 契約の共有語彙（authSchemes / errorCodes / schemas）
+ └── （DB 設計は docs に置かない）     # SSOT はホストの native スキーマ源（migration / schema.prisma / モデル）。R-102
+traceconfig.json                   # trace-check の設定（ホスト直下。schema.files でスキーマ源を宣言）
 ```
 
 - **人間ゲートの成果物**（vision / glossary / actors / GOAL / UC / REQ / BR / NFR）は `draft → active`（承認）`→ withdrawn`、**機械ループの成果物**（contract）は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、台帳ファイルは持たない（`trace-check --index` が生成）。
-- **テストは `@covers REQ-045#class`、実装は `@implements REQ-045 / BR-003 / UC-012`** で上流を指す。`trace-check` が「宣言した全クラスにテストがあるか（C10）」「方針にないテストが無いか（C11）」「孤児参照・死んだ規則・配置ずれ・採番衝突が無いか」を機械判定し、既存プロジェクトは baseline ラチェットで漸進導入する。
+- **テストは `@covers REQ-045#class`、実装は `@implements REQ-045 / BR-003 / UC-012`** で上流を指す。`trace-check` が「宣言した全クラスにテストがあるか（C10）」「方針にないテストが無いか（C11）」「DB で強制する規則にスキーマ側の制約があるか（C13）」「孤児参照・死んだ規則・配置ずれ・採番衝突が無いか」を機械判定し、既存プロジェクトは baseline ラチェットで漸進導入する。
 - 規約の正文（R-101 単一親制約 … R-1206）は `rules/develop/docs.md` が持ち、`docs/**` を触る producer にだけ paths ゲートで届く。書式はテンプレート、craft は各 agent body（三者を複製しない）。
 
 

@@ -68,6 +68,7 @@ paths:
 - **R-701 (MUST)** Implementation references its upstream IDs with `@implements REQ-nnn / BR-nnn / UC-nnn` annotations (reference only, no content). Where to put them is in `comments.md`.
 - **R-702 (MUST)** Layer dependency direction is enforced by lint / `trace-check` C6 (`layering` in `traceconfig.json`), never by prose alone.
 - **R-703 (MUST)** Agreement between the implementation's error codes and the contract vocabulary (`docs/_shared/components.yaml` `errorCodes`) is machine-checked (C7) when the host configures `contract` in `traceconfig.json`.
+- **R-704 (MUST)** The DB design's SSOT is the host's native schema source (a migration, `schema.prisma`, a model file — declared in `traceconfig.json` `schema`), never a document (R-102 applied). A BR whose `enforced_at` names the database is realized as a constraint annotated `@implements BR-nnn` in that source (C13). When a rule can be enforced at several points, the SSOT of the guarantee is decided by asymmetry — removing which point breaks correctness — and recorded in an ADR.
 
 ## 8. Change process
 
