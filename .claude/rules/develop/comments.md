@@ -67,18 +67,28 @@ All of it **in the present tense, as the current spec**. Not "changed to X" but 
 
 ---
 
-## 4. Where history belongs
+## 4. Traceability annotations (an ID, never content)
+
+The one comment that always goes in. `trace-check` (`.claude/tools/trace-check/`) reads it to derive the map between docs and code, so it is machine-read, not prose.
+
+- **Production code** that realizes a requirement, a rule, or a use case carries `@implements REQ-nnn` / `@implements BR-nnn` / `@implements UC-nnn` in the doc comment of the unit that realizes it (a use-case class, a rule function, the branch that enforces a check). Several IDs may share one line. **Write the ID only — never restate the requirement** (R-701; an ID that does not exist fails C5).
+- **Test code** carries `@covers REQ-nnn#class` — exactly one declared partition class per test (the placement per runner is in each framework's testing leaf; C10 / C11 check it).
+- These annotations are the current spec's address, not history: when a requirement is withdrawn or moved, update or remove the annotation in the same change.
+
+---
+
+## 5. Where history belongs
 
 | What you want to write | Destination |
 | --- | --- |
 | What was changed and why | git commit message |
 | The reasoning and trade-offs behind a design decision | `docs/adr/` |
-| The current behavior and rules | `docs/specs/F-xxx-<slug>/spec.md` |
+| The current behavior and rules | `docs/goals/**/UC-nnn-<slug>/` (UC.md, REQ-nnn.md) and `docs/rules/BR-nnn.md` |
 | Why the code as it is now is the way it is | an in-code comment (this document) |
 
 ---
 
-## 5. Existing history comments
+## 6. Existing history comments
 
 **Delete them within the range of the files you touched.** Do not file a bulk cleanup as separate work.
 
@@ -95,3 +105,4 @@ All of it **in the present tense, as the current spec**. Not "changed to X" but 
 - [ ] No notes that are only a date, an assignee, or a ticket number
 - [ ] No comment you kept is merely a restatement of what the code says
 - [ ] The history was routed to the commit message / ADR
+- [ ] Every unit that realizes a REQ / BR / UC carries its `@implements`, and every test its `@covers REQ-nnn#class`

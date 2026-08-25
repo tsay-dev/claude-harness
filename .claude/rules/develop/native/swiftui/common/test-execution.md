@@ -30,7 +30,7 @@ When concurrently launched Tasks each hit them, you get multiple launches, conte
 
 - A producer running concurrently **does not run tests** (`xcodebuild test`, a `simctl boot` for testing).
   Stop at editing, type checking, lint, and builds that need no simulator.
-- Having skipped, **state explicitly in your report that the tests are unexecuted and which suite (the target feature ID) needs to run.**
+- Having skipped, **state explicitly in your report that the tests are unexecuted and which suite (the target UC ID) needs to run.**
   Never silently treat "I could not confirm green myself" as complete.
 - **Exception 1: the Red check right after filing** (a selective run of the new tests only) is permitted. The implementers are not running yet
   and the execution fits into a single process, and skipping it would lose the test-first guarantee.
@@ -49,7 +49,7 @@ Once the concurrent section closes, **one agent running alone** (relaunching an 
 2. **Reuse an already-booted simulator.** Do not create, delete, or restart one per run.
 3. **Never run two `xcodebuild` processes at once** (including multiplying processes via the parallel-test-execution option).
 4. **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how:
-   - A fix-round / consolidated run is a **selection**: `-only-testing:` (or the host `CLAUDE.md`'s equivalent) on the feature-ID suites named in the report, plus any neighboring `F-xxx` in the blast radius. Never treat a mutation or a probe as a reason to fire the default-suite command.
+   - A fix-round / consolidated run is a **selection**: `-only-testing:` (or the host `CLAUDE.md`'s equivalent) on the UC suites named in the report, plus any neighboring `UC-nnn` in the blast radius. Never treat a mutation or a probe as a reason to fire the default-suite command.
    - A **whole default-suite run** is the host `CLAUDE.md`'s default-suite command, and only when the orchestrator asked for a boundary run (declaring the slice ready for commit, or CI).
 5. Take red/green from the exit code of **that** command. **Never hand anything to the next phase with nobody having run it.**
    "Green" during the loop means the selection is green. It does not mean the whole default suite ran.
@@ -61,6 +61,6 @@ How findings are bundled after a red, and the rework rounds, follow develop skil
 ## ✅ Checklist before returning
 
 - [ ] Did you run tests during a concurrent section? If you skipped, did you say so and name the target suite in your report?
-- [ ] Did the consolidated run settle red/green of the selection (feature IDs + blast radius), without firing the whole default suite as a fix-round command?
+- [ ] Did the consolidated run settle red/green of the selection (UC IDs + blast radius), without firing the whole default suite as a fix-round command?
 - [ ] Is the destination pinned and matching the declaration in `CLAUDE.md`?
 - [ ] Is only one `xcodebuild` running at a time?

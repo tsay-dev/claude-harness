@@ -38,16 +38,17 @@ The choice, the configuration, and **the command that runs the default suite** a
 
 ---
 
-## 2. Scoped execution (the feature ID tag)
+## 2. Scoped execution (the UC tag) and requirement coverage (`@covers`)
 
 In every test, make the outermost group (`describe` in most runners) read
 
-`F-001 <feature name>`
+`UC-012 <UC title>`
 
-so it can be selected mechanically by the feature ID (the same key as the directory name under `docs/specs/`).
+so it can be selected mechanically by the UC ID (the same key as the UC directory name under `docs/goals/`).
 
-- Write the concrete selection command, matched to the runner, in `CLAUDE.md` (e.g. a name filter for `F-001`)
-- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by feature ID
+- **Every test names exactly one declared partition class**: put `// @covers REQ-045#accept-standard` as the first line inside the `it` / `test` body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
+- Write the concrete selection command, matched to the runner, in `CLAUDE.md` (e.g. a name filter for `UC-012`)
+- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
 - **Never let a new test go untagged** (untagged, it falls out of scoped execution and regression detection is left to the boundary)
 
 ---
@@ -103,6 +104,6 @@ The coverage percentage is a hint about what you are not looking at — **never 
 ## ✅ Checklist before returning
 
 - [ ] Is the command that runs the default suite in `CLAUDE.md`, with red/green readable from the exit code?
-- [ ] Does the outermost group carry `F-xxx`?
+- [ ] Does the outermost group carry `UC-nnn`, and every test a `@covers REQ-nnn#class`?
 - [ ] Have real-time sleeps, a real DB, or a browser launch mixed into the default suite?
 - [ ] Are integration and system in separate folders, excluded from the default discovery?

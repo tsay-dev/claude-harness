@@ -92,8 +92,9 @@ public function test_is_active_returns_false_when_status_is_banned()
 - **State the file-discovery rule explicitly in `phpunit.xml`.** PHPUnit defaults to the `*Test.php` suffix, so
   crow's snake_case naming (`check_value_test.php`) means **nothing is discovered at all**.
   Configure `<directory suffix="_test.php">` in the `<testsuite>`
-- **The feature ID tag** (the common rules' "scoped execution"): put `#[Group('F-001')]` on the test class
-  (`@group F-001` on PHPUnit 9 and earlier). Run the selection with `phpunit --group F-001`
+- **The UC tag** (the common rules' "scoped execution"): put `#[Group('UC-012')]` on the test class
+  (`@group UC-012` on PHPUnit 9 and earlier). Run the selection with `phpunit --group UC-012`
+- **`@covers REQ-045#accept-standard` in each test method's docblock** (one declared partition class per test; the common rules' "requirement coverage")
 
 ## The structure of a test (AAA = Given-When-Then)
 

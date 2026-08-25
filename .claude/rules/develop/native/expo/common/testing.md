@@ -40,10 +40,11 @@ That is a defect in the configuration, not in what you are testing, so do not bu
 - **If none is installed, installing it is the gate to starting.** Pushing implementation forward with no runner means
   develop's Phase4 (the red-green loop driven by the machine oracle) does not hold
 - The choice, the configuration, and the run command are **recorded in the project's `CLAUDE.md`** (the harness does not pin them)
-- **Scoped execution (the feature ID tag)**: in every test, make the outermost `describe` read
-  `describe('F-001 <feature name>', ...)`, so it can be selected mechanically by the feature ID
-  (the same key as the directory name under `docs/specs/`). Run the selection with `jest -t "F-001"`.
-  **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by feature ID
+- **Scoped execution (the UC tag)**: in every test, make the outermost `describe` read
+  `describe('UC-012 <UC title>', ...)`, so it can be selected mechanically by the UC ID
+  (the same key as the UC directory name under `docs/goals/`). Run the selection with `jest -t "UC-012"`.
+  **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
+- **Requirement coverage**: every test names exactly one declared partition class with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
 
 ---
 

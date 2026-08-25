@@ -12,7 +12,7 @@ paths:
 > **Scope: server-side processing on Next.js (App Router).** If it is not Next.js, treat this document as inapplicable and discard it.
 >
 > **The common rules are [common/testing.md](../common/testing.md)** (the runner is declared by the project; one command to run;
-> determinism; suite separation; `F-xxx`). This document covers, **on top of following those**,
+> determinism; suite separation; `UC-nnn` / `@covers`). This document covers, **on top of following those**,
 > only what to try and how, per role. It never restates the common side.
 >
 > Separation of responsibilities is [backend/coding.md](./coding.md).
@@ -38,8 +38,9 @@ The further inside the onion, the easier and cheaper it is to refute. **Never ga
 ## 2. The domain
 
 ```ts
-describe("F-001 rename policy", () => {
+describe("UC-012 rename policy", () => {
   it("rejects empty display name", () => {
+    // @covers REQ-045#empty-name
     expect(decideDisplayName(current, "  ").ok).toBe(false);
   });
 });
@@ -85,4 +86,4 @@ Mock the Next-specific APIs; sweeping cache keys is not required.
 - [ ] Do mutation-controller tests stay closed on the edge and on distinguishing success from failure? (Actions = Result, RH = status + body)
 - [ ] Have you made read-wiring tests mandatory for the backend? (they are the frontend's)
 - [ ] Are real-DB tests split into the integration folder and excluded from the default?
-- [ ] Does the outermost group carry `F-xxx`?
+- [ ] Does the outermost group carry `UC-nnn`, and every test a `@covers REQ-nnn#class`?

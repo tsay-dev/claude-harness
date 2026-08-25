@@ -36,17 +36,18 @@ The choice, the configuration, and **the command that runs the default suite** a
 
 ---
 
-## 2. Scoped execution (the feature ID tag)
+## 2. Scoped execution (the UC tag) and requirement coverage (`@covers`)
 
 In every test, make the outermost group's name read
 
-`F-001 <feature name>`
+`UC-012 <UC title>`
 
-so it can be selected mechanically by the feature ID (the same key as the directory name under `docs/specs/`).
+so it can be selected mechanically by the UC ID (the same key as the UC directory name under `docs/goals/`).
 
-- With Swift Testing use `@Suite("F-001 …")`; with XCTest include `F-001` in the outermost class name or the name
+- With Swift Testing use `@Suite("UC-012 …")`; with XCTest include `UC-012` in the outermost class name or the name
+- **Every test names exactly one declared partition class** with `// @covers REQ-045#class` as the first line of its body (`trace-check` C10 / C11 read it; declare the class in the REQ's `## 検証方針` first)
 - Write the concrete selection command, matched to the runner, in `CLAUDE.md`
-- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by feature ID
+- **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
 - **Never let a new test go untagged** (when to run the selection is in [test-execution.md](./test-execution.md) and develop skill §4)
 
 ---
@@ -67,8 +68,9 @@ On this stack, the center of the deterministically drivable red-green loop is th
 - When examining a Router in a ViewModel test, use a fake or a spy that can observe the path change or the call
 
 ```swift
-@Test("F-001 ログイン — 成功するとセッションが立つ")
+@Test("UC-012 ログイン — 成功するとセッションが立つ")
 func loginSucceeds() async throws {
+  // @covers REQ-045#accept-standard
   let users = FakeUserRepository(result: .success(sampleUser))
   let useCase = LoginUseCase(users: users)
   try await useCase.execute(email: "a@b.c", password: "secret")
@@ -124,7 +126,7 @@ A UseCase or contract-conformance test that starts no external environment is **
 ## ✅ Checklist before returning
 
 - [ ] Is the command that runs the default suite in `CLAUDE.md`, with red/green readable from the exit code?
-- [ ] Does the outermost group carry `F-xxx`?
+- [ ] Does the outermost group carry `UC-nnn`, and every test a `@covers REQ-nnn#class`?
 - [ ] Is the main assertion on the UseCase (or a thin ViewModel) rather than escaping into a View/UI test?
 - [ ] Does mocking stay at boundaries such as the Repository?
 - [ ] Do the default suite's tests themselves avoid starting the real network, a real device, or UI? (the runner's destination requirement is a separate matter)

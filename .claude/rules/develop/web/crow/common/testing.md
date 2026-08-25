@@ -97,12 +97,13 @@ The moment they leave the red-green loop, there is no means left of catching an 
 this document does not cover how to write them (tool choice, scenario construction). It defines only **the location and "do not mix them into the default suite"**.
 An empty folder there is not a gap.
 
-## Scoped execution (the feature ID tag)
+## Scoped execution (the UC tag) and requirement coverage (`@covers`)
 
 Beyond running everything, make **per-feature selective execution** possible with a single command.
 
-- **Stamp every test with its feature ID (`F-xxx` — the same key as the directory name under `docs/specs/`) in a machine-selectable form** (a group attribute or a test-name prefix; the concrete syntax is in the layer leaf)
-- This turns "the tests relevant to this fix" from a judgment into a **mechanical resolution from `F-xxx`**. **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by feature ID
+- **Stamp every test with its UC ID (`UC-nnn` — the same key as the UC directory name under `docs/goals/`) in a machine-selectable form** (a group attribute or a test-name prefix; the concrete syntax is in the layer leaf)
+- **Every test names exactly one declared partition class with `@covers REQ-nnn#class`** in its doc comment (`trace-check` C10 / C11 read it: a class with no test, a test with no class, or an undeclared class is a violation. Declare the class in the REQ's `## 検証方針` first — the placement is in the layer leaf)
+- This turns "the tests relevant to this fix" from a judgment into a **mechanical resolution from `UC-nnn`**. **When to run a selection vs the whole default suite is authoritative in develop skill §4 (test-run granularity).** This leaf defines only how to stamp and select by UC ID
 - An untagged test falls out of scoped execution, leaving regression detection to the boundary. **Never let a new test go untagged**
 
 ## Naming
