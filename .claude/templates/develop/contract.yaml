@@ -1,15 +1,15 @@
-# Boundary contract — one feature, one file
-# With spec.md in the same directory this forms the feature's MIS (holds only the shape of the boundary; behavior and rules live in the spec)
+# Boundary contract — one UC (one vertical slice), one file
+# With UC.md and the REQ-*.md beside it this forms the slice's MIS (holds only the shape of the boundary; behavior and rules live in UC.md / REQ / BR)
 # This is NOT OpenAPI. One format covers HTTP and non-HTTP boundaries alike (why: docs/adr/0001)
 # Conformance is judged by `node .claude/tools/spec-lint/spec-lint.mjs validate` — never make your own reading the grounds for a pass
 # Accepted YAML is a strict subset (why: docs/adr/0002):
 #   - anchors and aliases (& / *) are an error — share through _shared/components.yaml instead
-#   - block scalars (| / >) are an error — long prose belongs in spec.md
-# Placeholders (F-000 / YYYY-MM-DD / <...>) must be replaced with real values before it is marked fixed
+#   - block scalars (| / >) are an error — long prose belongs in UC.md or a REQ
+# Placeholders (UC-000 / YYYY-MM-DD / <...>) must be replaced with real values before it is marked fixed
 # Write summary and when text in Japanese
-x-feature-id: F-000          # must match the ID part of the directory name F-000-<slug>
+x-uc: UC-000                 # must match the ID part of the directory name UC-000-<slug> (trace-check C9)
 x-status: draft              # draft | fixed (the caller marks it fixed; never do it yourself)
-x-spec: ./spec.md            # the behavioral SSOT (authoritative for purpose, rules, and GWT)
+x-spec: ./UC.md              # the behavioral SSOT (UC.md + the REQ-*.md in this directory)
 x-updated: YYYY-MM-DD
 
 operations:
@@ -54,7 +54,7 @@ operations:
         request: { i_xxx: "" }
         error: INVALID_INPUT
 
-# --- Variants by transport (uncomment the ones this feature needs) ---
+# --- Variants by transport (uncomment the ones this UC needs) ---
 #
 #  Local persistence — the shape is ours to decide, so owned stays true. No wire
 #   saveAppearance:
@@ -130,9 +130,9 @@ operations:
 #     errors:
 #       - { code: NOT_FOUND, when: <該当ユーザーなし> }
 
-# --- A feature with no boundary at all ---
+# --- A UC with no boundary at all ---
 #
-#  A feature that closes inside one screen (no network, no persistence, no OS capability)
+#  A UC that closes inside one screen (no network, no persistence, no OS capability)
 #  declares zero boundaries rather than going without a contract. This is a declaration, not an exemption,
 #  so develop skill §2's start gate stays intact. The reason is required — operations: {} alone is an error
 #

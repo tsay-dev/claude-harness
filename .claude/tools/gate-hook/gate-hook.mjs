@@ -1,24 +1,25 @@
 #!/usr/bin/env node
 //  gate-hook — §2 実装着手ゲートの機械強制（PreToolUse フック）
 //
-//  develop skill §2 は「spec と契約が fixed になる前に実装コードを書くな」という
-//  停止線だが、それ自体は説得的制御（AI が読み飛ばせば止まらない）。spec-lint の
+//  develop skill §2 は「UC / REQ が active になり契約が fixed になる前に実装コードを書くな」
+//  という停止線だが、それ自体は説得的制御（AI が読み飛ばせば止まらない）。spec-lint の
 //  gate も commit 時にしか発火しない事後チェックである。本フックはその停止線を
 //  Write / Edit の直前で発火する構造的強制に変える。
 //
 //  仕組み:
 //    Claude Code の PreToolUse フックとして起動され、stdin の JSON から書き込み
 //    対象パスを取り出す。対象が「実装コード」（--code glob にマッチ）なら、
-//    docs/specs/specs.md の台帳（工程列）を読み、実装中（工程=実装|検証）の
-//    全機能について spec / 契約の fixed を検証する。欠けていれば exit 2 で
-//    ツール実行そのものをブロックし、stderr の理由が AI に差し戻される。
+//    docs/goals/**/UC-*/UC.md の frontmatter phase:（工程台帳）を読み、実装中
+//    （phase=実装|検証）の全 UC について UC active / 全 REQ が draft でない / 契約 fixed を
+//    検証する。欠けていれば exit 2 でツール実行そのものをブロックし、stderr の理由が
+//    AI に差し戻される。
 //
 //  判定規則（fail-open / fail-closed の境界）:
 //    - docs 配下・.claude 配下・--code 非マッチ・--exclude マッチ → 許可（exit 0）。
 //      SSOT を書く行為はゲートの前提なので docs は常に通す。
 //    - 実装コードへの書き込みで、
-//        specs.md（台帳）が無い / 工程=実装|検証 の行が無い /
-//        該当機能の spec が fixed でない / 契約が無い・fixed でない
+//        docs/goals が無い / phase=実装|検証 の UC が無い /
+//        該当 UC が active でない / draft の REQ がある / 契約が無い・fixed でない
 //      → ブロック（exit 2）。ここは fail-closed（ゲートの存在意義）。
 //    - stdin が解釈できない等の内部エラー → 許可（exit 0）。フック自身の不具合で
 //      セッションを壊さない（ゲートは spec-lint gate と §2 自己確認が二重に守る）。
@@ -31,7 +32,7 @@
 //  使い方・設置手順・制約は同梱 README.md を参照。
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 //  ---- 引数 ----------------------------------------------------------------
 
@@ -74,7 +75,7 @@ function matchesAny(relPath, globs) {
 	return globs.some((g) => globToRegExp(g).test(relPath));
 }
 
-//  ---- docs パーサ（spec-lint と同じ規約: 値でセルを特定する） --------------
+//  ---- docs パーサ（spec-lint / trace-check と同じ規約: frontmatter が SSOT） -------
 
 function parseFrontmatter(text) {
 	const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -87,44 +88,34 @@ function parseFrontmatter(text) {
 	return data;
 }
 
-const STAGES = ["定義", "構造", "実装", "検証", "完了"];
-// 旧工程名「攻撃」は「検証」の別名として台帳読取時のみ認める
-const ACTIVE_STAGES = new Set(["実装", "検証", "攻撃"]);
+const ACTIVE_PHASES = new Set(["実装", "検証"]);
 
-function parseLedger(body) {
-	const rows = [];
-	for (const line of body.split(/\r?\n/)) {
-		const t = line.trim();
-		if (!t.startsWith("|")) continue;
-		const cells = t
-			.split("|")
-			.slice(1, -1)
-			.map((c) => c.trim());
-		const idm = cells[0] && cells[0].match(/F-\d+/);
-		if (!idm) continue; //  ヘッダ・区切り行
-		rows.push({
-			id: idm[0],
-			status: cells.find((c) => c === "draft" || c === "fixed") || null,
-			stage: cells.find((c) => STAGES.includes(c) || c === "攻撃") || null,
-		});
+const listDirs = (dir) =>
+	existsSync(dir) ? readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(dir, d.name)).sort() : [];
+
+//  docs/goals/**/UC-*/UC.md を全部読む（工程台帳は UC.md の phase: / R-1003 で台帳ファイルは持たない）
+function collectUcs(goalsRoot) {
+	const ucs = [];
+	for (const gdir of listDirs(goalsRoot)) {
+		if (basename(gdir).startsWith("_") || basename(gdir).startsWith(".")) continue;
+		for (const udir of listDirs(gdir)) {
+			const ufile = join(udir, "UC.md");
+			if (!existsSync(ufile)) continue;
+			const fm = parseFrontmatter(readFileSync(ufile, "utf8"));
+			ucs.push({ id: fm.id || basename(udir).match(/^UC-\d+/)?.[0] || basename(udir), dir: udir, status: fm.status || null, phase: fm.phase || null });
+		}
 	}
-	return rows;
+	return ucs;
 }
 
-//  機能ディレクトリ（docs/specs/F-xxx-<slug>/）をディレクトリ名の ID 部で解決する
-function findFeatureDir(specsRoot, id) {
-	if (!existsSync(specsRoot)) return null;
-	for (const f of readdirSync(specsRoot, { withFileTypes: true })) {
-		if (f.isDirectory() && (f.name === id || f.name.startsWith(id + "-")))
-			return join(specsRoot, f.name);
-	}
-	return null;
-}
-
-function specStatus(dir) {
-	const p = join(dir, "spec.md");
-	if (!existsSync(p)) return null;
-	return { status: parseFrontmatter(readFileSync(p, "utf8"))["ステータス"] || null };
+function draftReqs(dir) {
+	return readdirSync(dir)
+		.filter((n) => /^REQ-\d+\.md$/.test(n))
+		.filter((n) => {
+			const s = parseFrontmatter(readFileSync(join(dir, n), "utf8")).status;
+			return !s || s === "draft";
+		})
+		.map((n) => n.replace(/\.md$/, ""));
 }
 
 //  契約（境界契約 yaml）の x-status をトップレベル行スキャンで読む
@@ -176,51 +167,41 @@ function main() {
 	const rel = relative(root, abs).split(sep).join("/");
 	if (rel.startsWith("..")) process.exit(0); //  プロジェクト外（scratchpad 等）
 
-	//  SSOT・harness 自身は常に通す（ゲートを通すための行為を塞がない）
+	//  SSOT・harness 自身・trace 設定は常に通す（ゲートを通すための行為を塞がない）
 	const docsDir = opts.docs.replace(/\/+$/, "");
 	if (rel === docsDir || rel.startsWith(docsDir + "/")) process.exit(0);
 	if (rel.startsWith(".claude/")) process.exit(0);
+	if (rel === "traceconfig.json" || rel === ".trace-baseline.json") process.exit(0);
 
 	if (matchesAny(rel, opts.exclude)) process.exit(0);
 	if (!matchesAny(rel, opts.code)) process.exit(0);
 
-	//  ---- ここから実装コードへの書き込み: 台帳で §2 を検証（fail-closed） ----
+	//  ---- ここから実装コードへの書き込み: UC.md の工程で §2 を検証（fail-closed） ----
 
-	const specsRoot = join(root, docsDir, "specs");
-	const ledgerFile = join(specsRoot, "specs.md");
-	if (!existsSync(ledgerFile))
-		block([
-			`対象: ${rel}`,
-			`${docsDir}/specs/specs.md（台帳）が存在しない＝SSOT が無い。§2 判定条件 1 を満たせません。`,
-		]);
+	const goalsRoot = join(root, docsDir, "goals");
+	if (!existsSync(goalsRoot))
+		block([`対象: ${rel}`, `${docsDir}/goals（GOAL → UC → REQ の SSOT）が存在しない。§2 判定条件 1 を満たせません。`]);
 
-	const ledger = parseLedger(readFileSync(ledgerFile, "utf8"));
-	const active = ledger.filter((r) => r.stage && ACTIVE_STAGES.has(r.stage));
+	const active = collectUcs(goalsRoot).filter((u) => u.phase && ACTIVE_PHASES.has(u.phase));
 	if (active.length === 0)
 		block([
 			`対象: ${rel}`,
-			`specs.md の台帳に 工程=実装（または 検証）の機能がありません。`,
-			"実装に入る機能の spec / 契約を fixed にしたうえで、orchestrator が台帳の工程列を「実装」へ更新してから書くこと。",
+			`phase=実装（または 検証）の UC が ${docsDir}/goals 配下にありません。`,
+			"実装に入る UC の UC / REQ を active、契約を fixed にしたうえで、orchestrator が UC.md の phase: を「実装」へ更新してから書くこと。",
 		]);
 
 	const problems = [];
-	for (const r of active) {
-		const dir = findFeatureDir(specsRoot, r.id);
-		const spec = dir ? specStatus(dir) : null;
-		if (!spec)
-			problems.push(`${r.id}: spec（${docsDir}/specs/${r.id}-<slug>/spec.md）が存在しない → Phase 1`);
-		else if (spec.status !== "fixed")
-			problems.push(`${r.id}: spec が fixed でない（現在 ${spec.status ?? "不明"}）→ Phase 1`);
-		const contract = dir ? contractStatus(dir) : null;
-		if (!contract)
-			problems.push(`${r.id}: 契約（同ディレクトリの contract.yaml）が存在しない → Phase 3`);
+	for (const u of active) {
+		if (u.status !== "active") problems.push(`${u.id}: UC が active でない（現在 ${u.status ?? "不明"}）→ Phase 1`);
+		const drafts = draftReqs(u.dir);
+		if (drafts.length > 0) problems.push(`${u.id}: draft の REQ がある（${drafts.join(", ")}）→ Phase 1`);
+		const contract = contractStatus(u.dir);
+		if (!contract) problems.push(`${u.id}: 契約（${basename(u.dir)}/contract.yaml）が存在しない → Phase 3`);
 		else if (contract.status !== "fixed")
-			problems.push(
-				`${r.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ Phase 3（fixed 化は structure-oracle 不整合ゼロ後に orchestrator が行う）`,
-			);
+			problems.push(`${u.id}: 契約が fixed でない（現在 ${contract.status ?? "不明"}）→ Phase 3（fixed 化は structure-oracle 不整合ゼロ後に orchestrator が行う）`);
 	}
 	if (problems.length > 0)
-		block([`対象: ${rel}`, `実装中（工程=実装|検証）の機能に未充足があります:`, ...problems.map((p) => "  - " + p)]);
+		block([`対象: ${rel}`, `実装中（phase=実装|検証）の UC に未充足があります:`, ...problems.map((p) => "  - " + p)]);
 
 	process.exit(0);
 }

@@ -1,7 +1,7 @@
 # gate-hook — machine enforcement of the §2 implementation start gate (opt-in)
 
 A tool that structurally enforces the develop skill's **§2 implementation start gate** (never write
-implementation code before the spec and the contract are `fixed`) as a Claude Code **PreToolUse hook**.
+implementation code before the UC and its REQs are `active` and the contract is `fixed`) as a Claude Code **PreToolUse hook**.
 
 - **The develop process works without it** (§2 is a self-check, and the spec-lint gate is a post-hoc
   check at commit time). This hook adds a third net to those two: **a stop line that physically halts
@@ -13,28 +13,27 @@ implementation code before the spec and the contract are `fixed`) as a Claude Co
 ## How it works
 
 1. The hook fires immediately before Write / Edit / NotebookEdit and receives the target path.
-2. If the target is "implementation code" (it matches a `--code` glob), it reads the ledger at `docs/specs/specs.md`.
-3. It verifies, **for every feature whose phase is 実装 (implement) or 検証 (verify)**, that the spec and the contract are `fixed`.
-4. If anything is missing it **blocks the tool call with exit 2** and sends the reason (which feature is missing what, and the return-point phase) back to the AI on stderr. This halts regardless of the AI's intent.
+2. If the target is "implementation code" (it matches a `--code` glob), it reads the `phase:` frontmatter of every `docs/goals/**/UC-*/UC.md` (the progress ledger lives there — no ledger file is committed, R-1003).
+3. It verifies, **for every UC whose phase is 実装 (implement) or 検証 (verify)**, that the UC is `active`, none of its REQs is still `draft`, and its `contract.yaml` is `fixed`.
+4. If anything is missing it **blocks the tool call with exit 2** and sends the reason (which UC is missing what, and the return-point phase) back to the AI on stderr. This halts regardless of the AI's intent.
 
-Because the ledger (the phase column in specs.md) is used as the machine-readable gate state, **there
-is no extra state file**. As long as the orchestrator updates the ledger per the SKILL's procedure,
-that is exactly what the hook judges from.
+Because the UC's own frontmatter is the machine-readable gate state, **there is no extra state file**. As
+long as the orchestrator advances `phase:` per the SKILL's procedure, that is exactly what the hook judges from.
 
 ### Decision rules
 
 | Write target | Decision |
 | --- | --- |
-| Under `docs/` (spec, contract, ledger) | Always allowed (writing the SSOT is the gate's precondition) |
+| Under `docs/` (UC, REQ, contract), `traceconfig.json`, `.trace-baseline.json` | Always allowed (writing the SSOT is the gate's precondition) |
 | Under `.claude/`, matching `--exclude`, or not matching `--code` | Allowed (outside the gate) |
-| Implementation code + no ledger specs.md | **Blocked** (no SSOT → Phase 1) |
-| Implementation code + no row with phase 実装\|検証 in the ledger | **Blocked** (update the ledger before starting) |
-| Implementation code + the in-progress feature's spec / contract not `fixed` or absent | **Blocked** (→ Phase 1 / Phase 3) |
+| Implementation code + no `docs/goals` | **Blocked** (no SSOT → Phase 1) |
+| Implementation code + no UC with phase 実装\|検証 | **Blocked** (advance the UC's `phase:` before starting) |
+| Implementation code + an in-progress UC not `active`, a `draft` REQ in it, or its contract absent / not `fixed` | **Blocked** (→ Phase 1 / Phase 3) |
 | All of the above satisfied | Allowed |
 
 An internal error in the hook itself (malformed stdin and the like) **fails open** (allows) — a bug in
 the hook must not break the session. The gate decision itself, conversely, **fails closed** — with no
-ledger or SSOT, it halts.
+SSOT, it halts.
 
 ## Installation (in the host project)
 
@@ -80,18 +79,18 @@ harness-side file — in that case each person puts it in their own settings.loc
   only the Write/Edit family. A design that also blocks Bash misfires too often (obstructing builds and
   test runs), so it is deliberately out of scope.
 - **It does not distinguish the main agent from subagents.** A legitimate Write by an implementation
-  producer passes the same check, but legitimate implementation only happens once the ledger, spec, and
+  producer passes the same check, but legitimate implementation only happens once the UC, its REQs, and its
   contract are all in place, so the extra net is harmless (indeed it also stops a producer that strays).
 - **The walking skeleton** (§3; the explicit exception that writes behavior before the contract is fixed)
   should work outside the mainline code tree (e.g. `skeleton/`) and be excluded with `--exclude`, or be
   placed outside the gated globs.
-- If the ledger's phase column or a spec/contract status drifts from reality, the decision drifts with it.
-  spec-lint (`../spec-lint/`) confirms consistency at commit time.
+- If a UC's `phase:` or a status drifts from reality, the decision drifts with it.
+  spec-lint (`../spec-lint/`) and trace-check (`../trace-check/`) confirm consistency at commit time.
 
 ## Checking that it works
 
 ```bash
 echo '{"tool_input":{"file_path":"src/x.js"},"cwd":"/path/to/project"}' \
   | node .claude/tools/gate-hook/gate-hook.mjs --code 'src/**'
-echo $?   # 2 unless the ledger, spec, and contract are all in place (the block reason goes to stderr)
+echo $?   # 2 unless an in-progress UC, its REQs, and its contract are all in place (the block reason goes to stderr)
 ```

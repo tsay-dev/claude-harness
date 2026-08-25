@@ -1,6 +1,6 @@
-# docs/specs/_shared/components.yaml — the contracts' shared vocabulary ($ref targets)
-# What may go here: only what 2+ features use (auth schemes, error codes, shared DTOs)
-# A schema used by only one feature is written inline in that contract (never here)
+# docs/_shared/components.yaml — the contracts' shared vocabulary ($ref targets)
+# What may go here: only what 2+ UCs use (auth schemes, error codes, shared DTOs)
+# A schema used by only one UC is written inline in that contract (never here)
 # Only the orchestrator writes here. Concurrent producers never append; they report the vocabulary they want added
 # Accepted YAML is the same strict subset as contract.yaml (no anchors/aliases, no block scalars)
 
@@ -20,13 +20,14 @@ authSchemes: {}
   #   name: X-Api-Key
 
 # The closed vocabulary for a contract's `errors[].code`. An undefined code is an error.
-# The value is a one-line note on what the code means (the triggering condition goes in the contract's `when:`)
+# The value is a one-line note on what the code means (the triggering condition goes in the contract's `when:`).
+# trace-check C7 checks that the implementation's error codes are a subset of these keys (when traceconfig.json configures `contract`)
 errorCodes:
   INVALID_INPUT: 入力が要件を満たさない
   FORBIDDEN: 権限がない
   NOT_FOUND: 対象が存在しない
   PERMISSION_DENIED: OS の権限が拒否されている   # used by operations that declare requires:
 
-# Shared DTOs used by 2+ features
-# $ref target: ../_shared/components.yaml#/schemas/<Name>
+# Shared DTOs used by 2+ UCs
+# $ref target (from docs/goals/<GOAL>/<UC>/contract.yaml): ../../../_shared/components.yaml#/schemas/<Name>
 schemas: {}
