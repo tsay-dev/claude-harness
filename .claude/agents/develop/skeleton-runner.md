@@ -14,7 +14,7 @@ You are the **walking-skeleton runner** (a throwaway probe; a subagent in an ind
 ## Input contract (received from the orchestrator)
 
 - **The target subsystem and the cross-feature path to drive through** (the single one judged riskiest).
-- The structural artifacts to reference (feature specs, DB, contract).
+- The structural artifacts to reference (the UC directories, DB, contract).
 
 ## Craft (your expertise)
 

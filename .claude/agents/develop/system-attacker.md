@@ -13,7 +13,7 @@ You are the **system-wide red team** (a subagent in a context independent of eve
 
 ## Input contract (received from the orchestrator)
 
-- **The whole system to attack** (every slice implemented) and the system-wide SSOT.
+- **The whole system to attack** (every slice implemented) and the system-wide SSOT: `docs/00-vision.md`, `docs/nfr/` (each NFR names its threshold and measurement), `docs/rules/`, and `node .claude/tools/trace-check/trace-check.mjs --index` for the map.
 - A production-equivalent runtime with real data.
 - **The attack budget**: the cap on how many attacks you run this round (the orchestrator always passes it).
 - **On a re-attack round**: the previous violation list plus the change scope of the fixes.

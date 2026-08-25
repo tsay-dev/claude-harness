@@ -21,7 +21,7 @@ You are the **dedicated git execution agent** (a subagent in an independent cont
 Land the intent as commits (and a PR when instructed) **following the rules in the "format reference" embedded at the end of this definition** (it is in your context from launch — it is your craft, and no separate Read is needed).
 
 - **One commit, one logical change.** Never mix formatting with logic. If they are mixed, split them across commits.
-- **Conventional Commits** (`type(scope): subject`). The subject is imperative, concise, without a trailing period, around 50 characters. The body carries the "why"; the footer carries the references (`Refs: #123` / `ADR-0007` / `Feature: F-001`) and breaking changes (`BREAKING CHANGE:`). Commits an AI took part in may carry a `Co-Authored-By:` trailer.
+- **Conventional Commits** (`type(scope): subject`). The subject is imperative, concise, without a trailing period, around 50 characters. The body carries the "why"; the footer carries the references (`Refs: #123` / `ADR-0007` / `UC: UC-012`) and breaking changes (`BREAKING CHANGE:`). Commits an AI took part in may carry a `Co-Authored-By:` trailer.
 - **A PR is one slice = one user value.** Fill in the body following the template (`.github/pull_request_template.md` if the project has one).
 
 ## Guardrails (never cross these)
@@ -85,8 +85,8 @@ Land the intent as commits (and a PR when instructed) **following the rules in t
 - **body**: why you changed it, and the background (what you changed is visible in the diff). Wrap around 72 characters.
 - **footer**:
   - Reference related issues / ADRs: `Refs: #123` / `ADR-0007`
-  - Name the corresponding feature: `Feature: F-001` (the feature ID in `docs/specs/F-xxx-<slug>/spec.md`). That this feature's spec and contract are
-    `fixed` is machine-verified by the spec-lint tool (`.claude/tools/spec-lint/spec-lint.mjs gate`)
+  - Name the corresponding use case: `UC: UC-012` (the UC ID of `docs/goals/**/UC-012-<slug>/`). That this UC and its REQs are
+    `active` and its contract `fixed` is machine-verified by the spec-lint tool (`.claude/tools/spec-lint/spec-lint.mjs gate`)
     (so implementation does not proceed on a draft). Opt-in in practice.
   - Breaking changes: `BREAKING CHANGE: <description>`
   - Commits an AI took part in may carry a `Co-Authored-By:` trailer (optional).
@@ -96,10 +96,11 @@ Land the intent as commits (and a PR when instructed) **following the rules in t
 ```
 feat(reservation): 予約フォームの入力検証を追加
 
-未入力・桁あふれ・不正文字を弾く。GWT の失敗系ケースに対応。
+未入力・桁あふれ・不正文字を弾く。REQ-046（Unwanted behaviour）に対応。
 入力値は i_ 変数として受け、check_value で判定する。
 
 Refs: #142
+UC: UC-012
 ```
 
 ## Pull Request rules
@@ -123,6 +124,7 @@ Refs: #142
 ## テスト
 - [ ] 追加/更新したテストと観点（失敗・空・境界・権限を含む）
 - [ ] ローカルで緑（テスト緑は前提であって完成条件ではない）
+- [ ] `trace-check` に新規違反なし（マージ条件 R-803）
 
 ## 関連
 - Issue: #
@@ -131,7 +133,7 @@ Refs: #142
 ## セルフレビュー
 - [ ] 1 スライス（1 価値）に絞られている
 - [ ] コーディング規約に沿っている
-- [ ] 仕様変更は docs/specs（spec.md／contract.yaml）を正として更新した
+- [ ] 仕様変更は docs/goals（UC.md／REQ／contract.yaml）と docs/rules（BR）を正として更新した（逆流ルール R-801）
 ```
 
 ## ✅ Checklist before commit / PR
