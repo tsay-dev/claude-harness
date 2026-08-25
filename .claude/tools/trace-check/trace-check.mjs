@@ -29,7 +29,9 @@
 //         REQ のファイル名 = id、REQ が自身の uc の直下にあること
 //    C10  宣言された全分割クラスに 1 件以上のテストがあるか（未検証クラス / クラス未宣言）
 //    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）。
-//         traceconfig の tests.test_pattern があれば、@covers を持たないテスト関数も数える（注釈忘れは機械の目に映らない穴）
+//         traceconfig の tests.test_pattern があれば、@covers を持たないテスト関数も数える（注釈忘れは機械の目に映らない穴）。
+//         テストの同一性は「ファイル＋テスト名」（test_pattern の捕捉 1）。注釈の帰属は tests.covers_placement の宣言
+//         （before ＝ テスト印の直前のコメント / after ＝ 本体 1 行目）どおりの窓だけを見る。推測はしない
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは structure-oracle の判断に残る）
@@ -39,14 +41,15 @@
 //    node trace-check.mjs --update-baseline                            現状の違反を baseline に記録
 //    node trace-check.mjs --strict                                     baseline を無視して全違反を FAIL
 //    node trace-check.mjs --index                                      1 行 1 ID の索引を出力（生成物）
-//    node trace-check.mjs --next <goal|uc|req|br|nfr|adr>              次の空き ID を出力（採番はこれで / R-204。
-//                                                                      req は UC.md の表が予約した ID も使用済みと数える）
+//    node trace-check.mjs --next <goal|uc|req|br|nfr|adr> [--reserve N]  次の空き ID を N 件（既定 1）出力し、同時に予約する（R-204）。
+//                                                                      予約は .trace-reservations.json に mkdir ロックで原子的に記録するので
+//                                                                      並行 Task が同時に呼んでも同じ番号は返らない。req は UC.md の表の ID も使用済み
 //    node trace-check.mjs --only C9,C12                                指定の検査項目だけ判定（producer の自己検査用）
 //
 //  終了コード: 0 = 新規違反なし / 1 = 新規違反あり / 2 = 使い方エラー
 //
 
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 
 const CLASS_DECL_RE = /^\s*-\s*`#([\w-]+)`/gm;
@@ -207,25 +210,86 @@ function collectDefinitions(cfg) {
 	return registry;
 }
 
-function nextId(cfg, kind) {
+//  採番は「読んで最大＋1」だけでは並行 Task が同じ番号を得る。予約台帳（.trace-reservations.json）を
+//  mkdir ロック（存在すれば EEXIST になる原子操作）の中で読み書きし、返した番号をその場で使用済みにする。
+//  予約は ID が定義・参照された時点で自然に消える（台帳から落とす）。1 日たっても使われない予約は落とす
+//  （番号は意味を持たず再利用も禁じられていないので、漏れた番号が空くだけで害はない）
+const RESERVATION_FILE = ".trace-reservations.json";
+const RESERVATION_TTL_MS = 24 * 60 * 60 * 1000;
+const LOCK_STALE_MS = 30 * 1000;
+
+function withLock(root, fn) {
+	const lock = join(root, ".trace-next.lock");
+	const deadline = Date.now() + 5000;
+	for (;;) {
+		try {
+			mkdirSync(lock);
+			break;
+		} catch (e) {
+			if (e.code !== "EEXIST") throw e;
+			try {
+				if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) {
+					rmdirSync(lock); //  落ちたプロセスのロック
+					continue;
+				}
+			} catch {}
+			if (Date.now() > deadline) {
+				console.error(`trace-check: 採番ロックが取れない（${lock} が残っている。他の trace-check が動いていなければ削除する）`);
+				process.exit(2);
+			}
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 + Math.floor(Math.random() * 20));
+		}
+	}
+	try {
+		return fn();
+	} finally {
+		try {
+			rmdirSync(lock);
+		} catch {}
+	}
+}
+
+function usedNumbers(cfg, kind, prefix) {
+	const nums = new Set(Object.keys(collectDefinitions(cfg)).filter((i) => i.startsWith(prefix)).map((i) => Number(i.split("-")[1])));
+	//  backlog の ### 見出し定義も採番対象（R-203 の例外）
+	const backlog = p(cfg, "docs.goals_backlog");
+	if (kind === "goal" && existsSync(backlog))
+		for (const x of read(backlog).matchAll(/^###\s+GOAL-(\d+)/gm)) nums.add(Number(x[1]));
+	//  UC.md の状態 × イベント表が予約した REQ ID は、ファイルがまだ無くても使用済み
+	if (kind === "req")
+		for (const f of walk(p(cfg, "docs.goals_dir"), [".md"]))
+			if (basename(f) === "UC.md") for (const x of read(f).matchAll(/\bREQ-(\d+)\b/g)) nums.add(Number(x[1]));
+	return nums;
+}
+
+function nextIds(cfg, kind, count) {
 	kind = kind.toLowerCase();
 	const prefix = kind.toUpperCase() + "-";
 	const pattern = cfg.id_patterns?.[kind] || "";
 	const m = pattern.match(/\\d\{(\d+)\}/);
 	const width = m ? Number(m[1]) : 3;
-	const nums = Object.keys(collectDefinitions(cfg))
-		.filter((i) => i.startsWith(prefix))
-		.map((i) => Number(i.split("-")[1]));
-	//  backlog の ### 見出し定義も採番対象（R-203 の例外）
-	const backlog = p(cfg, "docs.goals_backlog");
-	if (kind === "goal" && existsSync(backlog))
-		for (const x of read(backlog).matchAll(/^###\s+GOAL-(\d+)/gm)) nums.push(Number(x[1]));
-	//  UC.md の状態 × イベント表が予約した REQ ID は、ファイルがまだ無くても使用済み（別 UC の定義者に同じ番号を渡さない）
-	if (kind === "req")
-		for (const f of walk(p(cfg, "docs.goals_dir"), [".md"]))
-			if (basename(f) === "UC.md") for (const x of read(f).matchAll(/\bREQ-(\d+)\b/g)) nums.push(Number(x[1]));
-	const next = nums.length ? Math.max(...nums) + 1 : 1;
-	return `${prefix}${String(next).padStart(width, "0")}`;
+	const file = join(cfg._root, RESERVATION_FILE);
+	return withLock(cfg._root, () => {
+		const used = usedNumbers(cfg, kind, prefix);
+		const now = Date.now();
+		let ledger = [];
+		if (existsSync(file)) {
+			try {
+				ledger = JSON.parse(read(file));
+			} catch {
+				ledger = [];
+			}
+		}
+		//  使われた予約と古い予約を落とす
+		ledger = ledger.filter((r) => r.kind === kind ? !r.ids.every((n) => used.has(n)) && now - r.at < RESERVATION_TTL_MS : now - r.at < RESERVATION_TTL_MS);
+		for (const r of ledger) if (r.kind === kind) for (const n of r.ids) used.add(n);
+		let n = used.size ? Math.max(...used) + 1 : 1;
+		const ids = [];
+		while (ids.length < count) ids.push(n++);
+		ledger.push({ kind, ids, at: now });
+		writeFileSync(file, JSON.stringify(ledger) + "\n");
+		return ids.map((x) => `${prefix}${String(x).padStart(width, "0")}`);
+	});
 }
 
 //  ---- コード側の注釈 ------------------------------------------------------------
@@ -262,44 +326,57 @@ function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source"))
 	return found;
 }
 
-//  test_pattern（テスト関数の印）があるとき、@covers を持たないテスト関数を数える。
-//  注釈（@covers / exempt_pattern の印）は「最も近いテストの印」に帰属させる: 印の直前のコメントに書く流儀も、
-//  本体 1 行目に書く流儀も同じに扱う（距離が同じなら後ろのテスト＝直前コメントの流儀を優先）。
-//  そのため、テスト同士の間にある注釈は前後どちらか近い方のもので、スイート先頭のテストが注釈なしに落ちることはない
+//  test_pattern（テスト関数の印。捕捉 1 ＝ テスト名）があるとき、@covers を持たないテストを数える。
+//  テストの同一性は「ファイル＋テスト名」で、行番号は表示にだけ使う（台帳の鍵が行ずれに依存しない）。
+//  注釈（@covers / exempt_pattern の印）の帰属は tests.covers_placement の宣言どおりの窓だけを見る:
+//    before ＝ 直前のテスト印の後からこの印の行まで（同じ行を含む）→ 次のテストのもの（doc コメントの流儀）
+//    after  ＝ テスト印の行から次の印の前まで → 直前のテストのもの（本体 1 行目の流儀）
+//  窓の外にある @covers はどのテストにも属さないので、それ自体を違反として出す（置き場の宣言違反）
+const COVERS_PLACEMENTS = ["before", "after"];
+
 function collectUnannotatedTests(cfg) {
 	const sec = cfg.tests;
 	if (!sec || !sec.test_pattern) return null;
 	const testRe = new RegExp(sec.test_pattern);
+	if (new RegExp(`${testRe.source}|`).exec("").length < 2) {
+		console.error("trace-check: tests.test_pattern にはテスト名の捕捉グループ ( ) が要る（未注釈テストの同一性は名前で持つ）");
+		process.exit(2);
+	}
+	const placement = sec.covers_placement || "before";
+	if (!COVERS_PLACEMENTS.includes(placement)) {
+		console.error(`trace-check: tests.covers_placement は ${COVERS_PLACEMENTS.join(" | ")}。実際: "${placement}"`);
+		process.exit(2);
+	}
 	const coversRe = new RegExp(cfg.covers_pattern);
 	const exemptRe = sec.exempt_pattern ? new RegExp(sec.exempt_pattern) : null;
-	const out = { total: 0, exempt: 0, missing: [] };
+	const out = { total: 0, exempt: 0, missing: [], orphans: [], placement };
 	for (const path of iterFiles(cfg, "tests")) {
 		const lines = read(path).split(/\r?\n/);
-		const tests = [];
-		const marks = []; //  { line, kind: "covers" | "exempt" }
+		const tests = []; //  { line, name }
+		const marks = []; //  { line, kind, text }
 		lines.forEach((line, i) => {
-			if (testRe.test(line)) tests.push(i);
-			if (coversRe.test(line)) marks.push({ line: i, kind: "covers" });
-			else if (exemptRe && exemptRe.test(line)) marks.push({ line: i, kind: "exempt" });
+			const t = testRe.exec(line);
+			if (t) tests.push({ line: i, name: t[1] ?? `line ${i + 1}` });
+			const c = coversRe.exec(line);
+			if (c) marks.push({ line: i, kind: "covers", text: c[0] });
+			else if (exemptRe && exemptRe.test(line)) marks.push({ line: i, kind: "exempt", text: line.trim() });
 		});
-		if (tests.length === 0) continue;
 		const covered = new Set();
 		const exempt = new Set();
-		let k = 0; //  tests[k] ＝ 印の行以下で最初のテスト
+		let k = 0; //  tests[k] ＝ 印の行以上で最初のテスト
 		for (const m of marks) {
-			while (k < tests.length && tests[k] < m.line) k++;
-			const next = k < tests.length ? k : null;
-			const prev = k > 0 ? k - 1 : null;
-			let owner;
-			if (next === null) owner = prev;
-			else if (prev === null) owner = next;
-			else owner = tests[next] - m.line <= m.line - tests[prev] ? next : prev;
-			(m.kind === "covers" ? covered : exempt).add(owner);
+			while (k < tests.length && tests[k].line < m.line) k++;
+			let owner = null;
+			if (placement === "before") owner = k < tests.length ? k : null;
+			else if (k < tests.length && tests[k].line === m.line) owner = k;
+			else owner = k > 0 ? k - 1 : null;
+			if (owner !== null) (m.kind === "covers" ? covered : exempt).add(owner);
+			else if (m.kind === "covers") out.orphans.push(`${basename(path)}:${m.line + 1} "${m.text}"`);
 		}
-		tests.forEach((line, idx) => {
+		tests.forEach((t, idx) => {
 			out.total++;
 			if (exempt.has(idx) && !covered.has(idx)) out.exempt++;
-			else if (!covered.has(idx)) out.missing.push(`${basename(path)}:${line + 1}`);
+			else if (!covered.has(idx)) out.missing.push(`${basename(path)}:${t.line + 1} "${t.name}"`);
 		});
 	}
 	return out;
@@ -445,9 +522,12 @@ function runChecks(cfg) {
 	}
 	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
 	const unannotated = collectUnannotatedTests(cfg);
-	if (unannotated)
+	if (unannotated) {
 		for (const w of unannotated.missing)
 			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
+		for (const w of unannotated.orphans)
+			failures.push(`[C11] ${w}: どのテストにも属さない @covers（tests.covers_placement: ${unannotated.placement} ＝ ${unannotated.placement === "before" ? "テスト印の直前のコメント" : "テスト印の行から本体の先頭"}に置く）`);
+	}
 
 	//  C13: DB で強制する規則にはスキーマ側の制約（@implements）が要る。schema 未設定なら判定しない
 	if (schema) {
@@ -471,7 +551,7 @@ function runChecks(cfg) {
 	lines.push(
 		`  GOAL: ${Object.keys(corpus.goals).length} (active: ${nActiveGoals}) / UC: ${Object.keys(corpus.ucs).length}` +
 			` / REQ: ${Object.keys(corpus.reqs).length} / 分割クラス: ${nClasses} / BR: ${Object.keys(brs).length} / テスト: ${nTests}` +
-			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt}）` : ""),
+			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt} / 帰属なし注釈 ${unannotated.orphans.length}）` : ""),
 	);
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];
@@ -546,7 +626,7 @@ function printIndex(cfg) {
 const baselineKey = (f) => f.replace(/(\S):\d+(?=[,:）)]|\s|$)/g, "$1");
 
 function parseArgs(argv) {
-	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, only: null };
+	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, reserve: 1, only: null };
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i];
 		if (a === "--root") opts.root = argv[++i];
@@ -555,6 +635,7 @@ function parseArgs(argv) {
 		else if (a === "--strict") opts.strict = true;
 		else if (a === "--index") opts.index = true;
 		else if (a === "--next") opts.next = argv[++i];
+		else if (a === "--reserve") opts.reserve = Number(argv[++i]);
 		else if (a === "--only") opts.only = new Set(argv[++i].split(",").map((s) => s.trim().toUpperCase()));
 		else {
 			console.error(`trace-check: 不明な引数 ${a}`);
@@ -575,7 +656,11 @@ function main() {
 			console.error("trace-check --next: goal|uc|req|br|nfr|adr のいずれか");
 			return 2;
 		}
-		console.log(nextId(cfg, opts.next));
+		if (!Number.isInteger(opts.reserve) || opts.reserve < 1) {
+			console.error("trace-check --reserve: 1 以上の整数");
+			return 2;
+		}
+		console.log(nextIds(cfg, opts.next, opts.reserve).join("\n"));
 		return 0;
 	}
 	if (opts.index) {

@@ -21,9 +21,10 @@ node trace-check.mjs [--root .] [--config traceconfig.json]   # the checks; exit
 node trace-check.mjs --update-baseline                        # record today's violations as the baseline
 node trace-check.mjs --strict                                 # ignore the baseline (everything fails)
 node trace-check.mjs --index                                  # the whole-project map, one line per ID
-node trace-check.mjs --next req                               # the next free ID (goal|uc|req|br|nfr|adr) — R-204. For req, IDs a UC.md table
-                                                              # has reserved count as taken even before the file exists. Concurrent Tasks never
-                                                              # call it themselves: the orchestrator calls once and hands each Task a disjoint band
+node trace-check.mjs --next req [--reserve N]                 # the next N free IDs (goal|uc|req|br|nfr|adr), one per line — R-204. Atomic:
+                                                              # the numbers are reserved in .trace-reservations.json under a mkdir lock, so
+                                                              # concurrent Tasks can all call it and never receive the same number. For req,
+                                                              # IDs a UC.md table has reserved count as taken even before the file exists
 node trace-check.mjs --only C9,C12                            # judge only these checks (a producer's self-check)
 ```
 
@@ -43,7 +44,7 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C8 | an `active` GOAL has no UC realizing it | — |
 | C9 | placement disagrees with the frontmatter: directory prefix ≠ `id`, `GOAL.md` / `UC.md` missing, a REQ's file name ≠ `id`, a REQ not directly under its own `uc:`, a UC's `goal:` ≠ its directory | R-1006 / R-1007 |
 | C10 | a declared partition class has no test, or an `active` REQ declares none (the lower bound) | R-1101 / R-1104 |
-| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test carrying `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing. An annotation belongs to the **nearest** test mark, so both placements work — the doc comment above the test and the first line of its body (a tie goes to the following test, the doc-comment convention); the first test of a suite is never orphaned | R-1102 / R-1103 |
+| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test carrying `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing. A test's identity is **file + name** (`test_pattern` must capture the name), so the ledger never depends on line numbers. Where the annotation sits is **declared**, not guessed: `tests.covers_placement: before` (default — the doc comment right above the test mark) or `after` (the mark's line and the first lines of the body); trace-check looks only in that window, and an `@covers` outside every window is reported as belonging to no test | R-1102 / R-1103 |
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
 | C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
 
@@ -60,9 +61,9 @@ node .claude/tools/trace-check/trace-check.mjs                     # from now on
 # as debts are paid, --update-baseline shrinks the ledger; when it is empty, switch to --strict
 ```
 
-The ledger is keyed by the message with every `<file>:<line>` reduced to `<file>` — a C11 entry survives edits that
-merely shift lines — and equal keys are compared by count, so one more unannotated test in a file that already has
-three is still a new violation (the report keeps the line numbers).
+The ledger is keyed by the message with every `<file>:<line>` reduced to `<file>` (an unannotated test is identified
+by its name, so the entry survives any edit that keeps the name), and equal keys are compared by count (the report
+keeps the line numbers for navigation).
 
 Only "no worse than today" is enforced at first; repayment is planned. **The baseline only ever shrinks**
 (R-804) — a review sends back any growth. Whether `.trace-baseline.json` is monotonically decreasing is the

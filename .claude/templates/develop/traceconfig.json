@@ -1,5 +1,5 @@
 {
-  "_comment": "Placed at the host project root as traceconfig.json. Read by .claude/tools/trace-check. The orchestrator seeds it once; the host edits source/tests/layering to match its own layout. Omit the contract block when the implementation has no single error-code source (C7 then skips). The schema block names the DB design's native source (migrations / schema.prisma / model files); omit it when the app owns no persisted data (C13 then skips). implements_pattern's capture 1 may be a list (`@implements UC-001, REQ-009 / BR-015`); trace-check splits it on , or /. tests.test_pattern marks a test function (one regex per line); with it set, C11 also reports tests that carry no @covers at all, except those carrying tests.exempt_pattern (an explicit out-of-spec marker); an annotation belongs to the nearest test mark, so the doc comment above the test and the first line of its body both work — omit both to skip that check. layering.layer_pattern says which path level under layering.root names the layer: \"{layer}\" (default) is the first level, \"*/{layer}\" the second (Features/<name>/Domain), * matching any one directory.",
+  "_comment": "Placed at the host project root as traceconfig.json. Read by .claude/tools/trace-check. The orchestrator seeds it once; the host edits source/tests/layering to match its own layout. Omit the contract block when the implementation has no single error-code source (C7 then skips). The schema block names the DB design's native source (migrations / schema.prisma / model files); omit it when the app owns no persisted data (C13 then skips). implements_pattern's capture 1 may be a list (`@implements UC-001, REQ-009 / BR-015`); trace-check splits it on , or /. tests.test_pattern marks a test function (one regex per line) and MUST capture the test's name in group 1 — a test's identity is file + name, never a line number (Swift Testing: \"^\\s*@Test(?:\\([^)]*\\))?\\s+func\\s+(\\w+)\"); with it set, C11 also reports tests that carry no @covers at all, except those carrying tests.exempt_pattern (an explicit out-of-spec marker). tests.covers_placement declares where the annotation sits and trace-check looks only there: \"before\" (default) = the doc comment right above the test mark, \"after\" = the test mark's line and the first lines of its body; an @covers outside every test's window is itself a violation. Omit test_pattern to skip that check. --next records its reservations in .trace-reservations.json (transient; do not commit). layering.layer_pattern says which path level under layering.root names the layer: \"{layer}\" (default) is the first level, \"*/{layer}\" the second (Features/<name>/Domain), * matching any one directory.",
   "id_patterns": {
     "goal": "\\bGOAL-\\d{2}\\b",
     "uc": "\\bUC-\\d{3}\\b",
@@ -34,7 +34,8 @@
     "extensions": [
       ".ts"
     ],
-    "test_pattern": "^\\s*(it|test)\\(",
+    "test_pattern": "^\\s*(?:it|test)\\(\\s*[\"'`](.+?)[\"'`]",
+    "covers_placement": "before",
     "exempt_pattern": "//\\s*仕様外:"
   },
   "schema": {
