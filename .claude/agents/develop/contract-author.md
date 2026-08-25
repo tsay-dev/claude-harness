@@ -32,7 +32,7 @@ Read the UC's main scenario, its state × event table, and each REQ's sentence, 
 
 | Axis | How you decide it |
 | --- | --- |
-| `transport` | The route it actually crosses: `http` / `sdk` / `local-store` / `deeplink` / `push` / `device` — the decision table in the template's header is authoritative. A boundary between two modules of the same app is not an operation at all (the type system is its contract, R-1204); never model it as `http` or `sdk` to have something in the file |
+| `transport` | The route it actually crosses: `http` / `sdk` / `local-store` / `deeplink` / `push` / `device` / `internal` — the decision table in the template's header is authoritative. A boundary between two modules of the same app is by default not an operation at all (the type system is its contract, R-1204); it becomes an `internal` operation only when the host's ADR says every such boundary is contracted, and then uniformly. Never model it as `http` or `sdk` to have something in the file |
 | `direction` | `outbound` when this app calls out, `inbound` when this app is called (a deeplink and a push are always inbound) |
 | `owned` | `true` when the shape is ours to settle, `false` when we transcribe someone else's — a third party's API, an SDK's surface. `false` requires `source` |
 | `auth` | The scheme this operation actually requires, or `none`. Never omit it |

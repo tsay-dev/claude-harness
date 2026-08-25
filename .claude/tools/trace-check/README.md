@@ -38,12 +38,12 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C3 | a test `@covers` a REQ that does not exist | R-602 |
 | C4 | a BR is referenced by no UC and no REQ (a dead rule) | R-103 |
 | C5 | code `@implements` an ID that does not exist (an orphan reference) | R-701 |
-| C6 | a layer imports a layer it must not (`layering` in the config; `layer_pattern` names the path level that is the layer — `{layer}` = the first level under `root`, `*/{layer}` = the second, as in `Features/<name>/Domain`) | R-702 |
+| C6 | a layer imports a layer it must not (`layering` in the config; `layer_pattern` names the path level that is the layer — `{layer}` = the first level under `root`, `*/{layer}` = the second, as in `Features/<name>/Domain`). C6 sees only `import_patterns`: a language whose layers share one module and never import each other (a single-module Swift app) gives it nothing to match, and a green C6 there is silence, not proof — enforce the direction with the platform linter instead and leave `layering` unset | R-702 |
 | C7 | the implementation's error codes are not a subset of `docs/_shared/components.yaml` `errorCodes` (only when `contract` is configured) | R-703 |
 | C8 | an `active` GOAL has no UC realizing it | — |
 | C9 | placement disagrees with the frontmatter: directory prefix ≠ `id`, `GOAL.md` / `UC.md` missing, a REQ's file name ≠ `id`, a REQ not directly under its own `uc:`, a UC's `goal:` ≠ its directory | R-1006 / R-1007 |
 | C10 | a declared partition class has no test, or an `active` REQ declares none (the lower bound) | R-1101 / R-1104 |
-| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test preceded by `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing | R-1102 / R-1103 |
+| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test carrying `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing. An annotation belongs to the **nearest** test mark, so both placements work — the doc comment above the test and the first line of its body (a tie goes to the following test, the doc-comment convention); the first test of a suite is never orphaned | R-1102 / R-1103 |
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
 | C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
 
@@ -59,6 +59,10 @@ node .claude/tools/trace-check/trace-check.mjs --update-baseline   # ledger toda
 node .claude/tools/trace-check/trace-check.mjs                     # from now on only NEW violations fail
 # as debts are paid, --update-baseline shrinks the ledger; when it is empty, switch to --strict
 ```
+
+The ledger is keyed by the message with every `<file>:<line>` reduced to `<file>` — a C11 entry survives edits that
+merely shift lines — and equal keys are compared by count, so one more unannotated test in a file that already has
+three is still a new violation (the report keeps the line numbers).
 
 Only "no worse than today" is enforced at first; repayment is planned. **The baseline only ever shrinks**
 (R-804) — a review sends back any growth. Whether `.trace-baseline.json` is monotonically decreasing is the

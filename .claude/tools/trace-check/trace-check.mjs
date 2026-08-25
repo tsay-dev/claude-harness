@@ -14,6 +14,7 @@
 //
 //  既存プロジェクトへの漸進導入（baseline ラチェット）:
 //    --update-baseline で現状違反を台帳化 → 以降は新規違反のみ FAIL → 返済で縮め、空になったら --strict へ。
+//    台帳の鍵は行番号を落とした文字列（行がずれても既知の違反を新規と数えない。同じ鍵の件数は多重集合で比べる）。
 //
 //  検査項目:
 //    C1   すべての active な REQ が 1 件以上のテストに被覆されているか
@@ -262,8 +263,9 @@ function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source"))
 }
 
 //  test_pattern（テスト関数の印）があるとき、@covers を持たないテスト関数を数える。
-//  規約: @covers はテスト関数の直前のコメント（前のテストの印より後）か同じ行に書く。
-//  exempt_pattern の印（`// 仕様外:` など）がその区間にあるテストは、明示の除外として数えない
+//  注釈（@covers / exempt_pattern の印）は「最も近いテストの印」に帰属させる: 印の直前のコメントに書く流儀も、
+//  本体 1 行目に書く流儀も同じに扱う（距離が同じなら後ろのテスト＝直前コメントの流儀を優先）。
+//  そのため、テスト同士の間にある注釈は前後どちらか近い方のもので、スイート先頭のテストが注釈なしに落ちることはない
 function collectUnannotatedTests(cfg) {
 	const sec = cfg.tests;
 	if (!sec || !sec.test_pattern) return null;
@@ -272,17 +274,32 @@ function collectUnannotatedTests(cfg) {
 	const exemptRe = sec.exempt_pattern ? new RegExp(sec.exempt_pattern) : null;
 	const out = { total: 0, exempt: 0, missing: [] };
 	for (const path of iterFiles(cfg, "tests")) {
-		let covered = false;
-		let exempt = false;
-		read(path).split(/\r?\n/).forEach((line, i) => {
-			if (coversRe.test(line)) covered = true;
-			if (exemptRe && exemptRe.test(line)) exempt = true;
-			if (!testRe.test(line)) return;
+		const lines = read(path).split(/\r?\n/);
+		const tests = [];
+		const marks = []; //  { line, kind: "covers" | "exempt" }
+		lines.forEach((line, i) => {
+			if (testRe.test(line)) tests.push(i);
+			if (coversRe.test(line)) marks.push({ line: i, kind: "covers" });
+			else if (exemptRe && exemptRe.test(line)) marks.push({ line: i, kind: "exempt" });
+		});
+		if (tests.length === 0) continue;
+		const covered = new Set();
+		const exempt = new Set();
+		let k = 0; //  tests[k] ＝ 印の行以下で最初のテスト
+		for (const m of marks) {
+			while (k < tests.length && tests[k] < m.line) k++;
+			const next = k < tests.length ? k : null;
+			const prev = k > 0 ? k - 1 : null;
+			let owner;
+			if (next === null) owner = prev;
+			else if (prev === null) owner = next;
+			else owner = tests[next] - m.line <= m.line - tests[prev] ? next : prev;
+			(m.kind === "covers" ? covered : exempt).add(owner);
+		}
+		tests.forEach((line, idx) => {
 			out.total++;
-			if (exempt) out.exempt++;
-			else if (!covered) out.missing.push(`${basename(path)}:${i + 1}`);
-			covered = false;
-			exempt = false;
+			if (exempt.has(idx) && !covered.has(idx)) out.exempt++;
+			else if (!covered.has(idx)) out.missing.push(`${basename(path)}:${line + 1}`);
 		});
 	}
 	return out;
@@ -524,6 +541,10 @@ function printIndex(cfg) {
 
 //  ---- 引数と main ---------------------------------------------------------------
 
+//  台帳の鍵: メッセージ中の「<ファイル>:<行>」から行番号を落とす（C11 の派生など位置を含む項目が、
+//  行をずらすだけの編集で「新規違反＋解消済み」に化けないため）。表示は行番号つきのまま
+const baselineKey = (f) => f.replace(/(\S):\d+(?=[,:）)]|\s|$)/g, "$1");
+
 function parseArgs(argv) {
 	const opts = { root: ".", config: null, updateBaseline: false, strict: false, index: false, next: null, only: null };
 	for (let i = 0; i < argv.length; i++) {
@@ -567,16 +588,26 @@ function main() {
 	if (!opts.only) console.log(report);
 
 	if (opts.updateBaseline) {
-		writeFileSync(baselinePath, JSON.stringify(failures, null, 2) + "\n");
+		writeFileSync(baselinePath, JSON.stringify(failures.map(baselineKey), null, 2) + "\n");
 		console.log(`\nbaseline を更新: ${failures.length} 件を記録（${basename(baselinePath)}）`);
 		return 0;
 	}
 
 	let baseline = [];
-	if (existsSync(baselinePath) && !opts.strict && !opts.only) baseline = JSON.parse(read(baselinePath));
-	const fresh = failures.filter((f) => !baseline.includes(f));
-	const knownOnes = failures.filter((f) => baseline.includes(f));
-	const resolved = baseline.filter((b) => !failures.includes(b));
+	if (existsSync(baselinePath) && !opts.strict && !opts.only) baseline = JSON.parse(read(baselinePath)).map(baselineKey);
+	//  同じ鍵（同じファイルの未注釈テスト N 本など）は件数で比べる。台帳より増えた分だけが新規
+	const remaining = new Map();
+	for (const b of baseline) remaining.set(b, (remaining.get(b) || 0) + 1);
+	const fresh = [];
+	const knownOnes = [];
+	for (const f of failures) {
+		const key = baselineKey(f);
+		if (remaining.get(key) > 0) {
+			remaining.set(key, remaining.get(key) - 1);
+			knownOnes.push(f);
+		} else fresh.push(f);
+	}
+	const resolved = [...remaining.entries()].flatMap(([b, n]) => Array(n).fill(b));
 
 	if (knownOnes.length) {
 		console.log(`\nWARN（baseline 済み ${knownOnes.length} 件 / 返済対象）:`);

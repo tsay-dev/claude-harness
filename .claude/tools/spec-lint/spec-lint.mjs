@@ -65,7 +65,7 @@ const MAX_UC_CHARS = 8000; //  UC.md 本文の文字数（行数では 1 行 1,0
 const MAX_REQ_CHARS = 2500; //  REQ 本文（EARS 1 文 + 検証方針）
 const MAX_BR_CHARS = 2500; //  BR 本文（存在と意図だけ。値は R-102 で機械可読側へ）
 const MAX_EARS_CHARS = 200; //  EARS 文 1 本の長さ（超えるのは複数要件の圧縮 / R-401）
-const MAX_UC_CROSS_REFS = 10; //  UC.md 内の他 UC 参照数（複製の密度）
+const MAX_UC_CROSS_REFS = 10; //  UC.md の本文中の他 UC 参照数（複製の密度。表と事前条件の ID は数えない）
 const MAX_CONTRACT_LINES = 400; //  契約 YAML は 1 行 1 キーの ASCII なので行数で測る
 
 //  --- 収集した違反 ---
@@ -282,12 +282,19 @@ function checkHygiene(file, body, kind, opts = {}) {
 	if (kind === "br" && plain.length > MAX_BR_CHARS)
 		warn(file, `本文が ${plain.length} 文字（${MAX_BR_CHARS} 文字超）— 値・列挙は機械可読側へ（R-102）。ここは存在と意図だけ`);
 
-	//  6) UC の他 UC 参照密度（参照先の振る舞いを複製していないか）
+	//  6) UC の他 UC 参照密度（参照先の振る舞いを複製していないか）。
+	//     R-105 の疑いは散文にしか立たないので、表の行（状態 × イベント表の「不可: UC-nnn」など）と
+	//     事前条件の参照列挙は数えず、本文の延べ出現だけを見る
 	if (kind === "uc") {
 		const selfId = opts.selfId || "";
-		const refs = (plain.match(/\bUC-\d+\b/g) || []).filter((r) => r !== selfId);
+		const prose = getSections(plain)
+			.filter((s) => !s.title.startsWith("事前条件"))
+			.flatMap((s) => s.lines)
+			.filter((l) => !l.trim().startsWith("|"))
+			.join("\n");
+		const refs = (prose.match(/\bUC-\d+\b/g) || []).filter((r) => r !== selfId);
 		if (refs.length > MAX_UC_CROSS_REFS)
-			warn(file, `他 UC への参照が ${refs.length} 件（${MAX_UC_CROSS_REFS} 件超）— 参照先の振る舞いを複製していないか。共通の規則は BR へ括り出す（R-105）`);
+			warn(file, `本文中の他 UC への参照が ${refs.length} 件（${MAX_UC_CROSS_REFS} 件超。表と事前条件は数えない）— 参照先の振る舞いを複製していないか。共通の規則は BR へ括り出す（R-105）`);
 	}
 
 	if (kind === "contract") {
@@ -755,7 +762,8 @@ function parseStrictYaml(text, opts = {}) {
 
 //  --- 契約 contract.yaml の検証（UC ディレクトリ直下。x-uc がディレクトリの ID と一致すること）---
 
-const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device"];
+//  internal ＝ 同じプロセス内の境界を、ホストが ADR で「契約に書く」と決めたときの語（既定は R-1204 で operation にしない）
+const TRANSPORTS = ["http", "sdk", "local-store", "deeplink", "push", "device", "internal"];
 const DIRECTIONS = ["outbound", "inbound"];
 const ENTRY_TRANSPORTS = ["deeplink", "push"];
 const PERMISSION_CODE = "PERMISSION_DENIED";
@@ -1149,12 +1157,22 @@ function reportWithBaseline(opts) {
 	}
 	let baseline = [];
 	if (existsSync(opts.baseline) && !opts.strict) baseline = JSON.parse(readFileSync(opts.baseline, "utf8"));
-	const known = errors.filter((e) => baseline.includes(baselineKey(e)));
-	const fresh = errors.filter((e) => !baseline.includes(baselineKey(e)));
-	const resolved = baseline.filter((b) => !errors.some((e) => baselineKey(e) === b));
+	//  同じ鍵は件数で比べる（台帳より増えた分だけが新規）
+	const remaining = new Map();
+	for (const b of baseline) remaining.set(b, (remaining.get(b) || 0) + 1);
+	const known = [];
+	const fresh = [];
+	for (const e of errors) {
+		const key = baselineKey(e);
+		if (remaining.get(key) > 0) {
+			remaining.set(key, remaining.get(key) - 1);
+			known.push(e);
+		} else fresh.push(e);
+	}
+	const resolved = [...remaining.values()].reduce((n, x) => n + x, 0);
 	for (const e of known) console.warn(`  known ${e.file}: ${e.msg}`);
 	for (const e of fresh) console.error(`  ERROR ${e.file}: ${e.msg}`);
-	if (resolved.length) console.log(`spec-lint: 解消済み ${resolved.length} 件 -> --update-baseline で baseline を縮めること`);
+	if (resolved) console.log(`spec-lint: 解消済み ${resolved} 件 -> --update-baseline で baseline を縮めること`);
 	if (fresh.length === 0) console.log(`spec-lint: OK（warn ${warns.length}${known.length ? ` / baseline 済み ${known.length}` : ""}）`);
 	else console.error(`spec-lint: ${fresh.length} 件の新規違反${known.length ? `（baseline 済み ${known.length} 件は別）` : ""}`);
 	return fresh.length > 0 ? 1 : 0;

@@ -13,7 +13,9 @@ the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary con
   lint follows). The closed vocabularies live here because only executable code can enforce them:
   `status` (`draft|active|withdrawn` on nodes, `draft|frozen|living` on singletons, `proposed|accepted|superseded`
   on ADRs, `draft|fixed` on contracts), `phase` (`定義|構造|実装|検証|完了`), `pattern` (the 5 EARS patterns),
-  `transport` / `direction`
+  `transport` (`http|sdk|local-store|deeplink|push|device|internal` — `internal` is an in-process boundary the host
+  has decided, in an ADR, to contract explicitly; the default under R-1204 is that such a boundary is not an operation)
+  / `direction`
 - **Traceability is not its job**: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter
   (C9), and numbering collisions are `../trace-check/`'s 13 checks
 - **Scope of contract verification**: a contract is **not OpenAPI** — it is the harness's own boundary-contract
@@ -45,7 +47,8 @@ On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-m
 ## The baseline ratchet
 
 The same semantics as trace-check's: `--update-baseline` records every current error (keyed by file without line
-number + message, so unrelated edits that shift lines do not turn a known error into a new one); a later `validate`
+number + message, so unrelated edits that shift lines do not turn a known error into a new one; equal keys are
+compared by count, so one more error of an already-ledgered kind is still new); a later `validate`
 prints known errors as `known` and fails only on new ones; `--update-baseline` again shrinks the ledger once errors
 are repaid. Use it for an existing project's first adoption and for the known red of a migration (`fixed` contracts
 whose REQs are still `draft`, old-format files not yet converted). The ledger only shrinks (R-804) except at the
@@ -100,7 +103,7 @@ the negative lists is each producer's craft):
 | A "known issues / residual risks / backlog" section | UC / REQ | Open items are pushed out to issue tracking |
 | Bloat (UC over 8,000 chars / REQ over 2,500 / BR over 2,500 / contract over 400 lines) | all | Measured in characters, not lines (a 1,000-character line slips under a line count) |
 | An EARS sentence over 200 characters | REQ | Several requirements compressed into one (R-401) |
-| Over 10 references to other UCs | UC | Suspected duplication of the referenced behavior. Extract a BR (R-105) |
+| Over 10 references to other UCs **in the prose** (table rows — `不可: UC-010` cells included — and the 事前条件 section are not counted: an ID there is a reference by design, not a copy) | UC | Suspected duplication of the referenced behavior. Extract a BR (R-105) |
 | An NFR without a measurement, a BR without `**意図**` | NFR / BR | R-104 / the rule holds existence and intent |
 | `x-*` restating business rules, a long `description` | contract | Rules and evaluation order belong to UC / REQ / BR. A contract holds only the shape |
 | A UC `active` with no `contract.yaml` | UC | Declare zero boundaries (`operations: {}` + `x-no-boundary`) rather than omitting the file |

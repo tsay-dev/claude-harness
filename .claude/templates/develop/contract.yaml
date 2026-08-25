@@ -14,9 +14,12 @@
 #   local-store  persistence on the device / the host (UserDefaults, Keychain, files, SQLite, IndexedDB …)
 #   device       an OS capability behind a permission or hardware (camera, HealthKit, calendar, location …) — declare requires:
 #   deeplink     the app is opened by a URL (always inbound)     push  the app receives a notification payload (always inbound)
-#   A boundary between two modules of the same app (UI ↔ logic, feature ↔ feature, a repository protocol) is NOT an
-#   operation: the language's type system is its contract (R-1204). A UC whose only boundaries are internal declares
-#   operations: {} + x-no-boundary. Never model an internal call as http or sdk to have "something" in the contract
+#   internal     an in-process boundary of this app (UI → use case, an action boundary of an on-device app) that the
+#                project has decided, in an ADR, to contract explicitly. owned: true, auth: none as a rule; no wire, no entry
+#   The default for a boundary between two modules of the same app (UI ↔ logic, feature ↔ feature, a repository
+#   protocol) is NOT an operation: the language's type system is its contract (R-1204), and a UC whose only boundaries
+#   are internal declares operations: {} + x-no-boundary. Use internal only under that ADR, uniformly for every UC —
+#   never http or sdk for an in-process call to have "something" in the contract
 x-uc: UC-000                 # must match the ID part of the directory name UC-000-<slug> (trace-check C9)
 x-status: draft              # draft | fixed (the caller marks it fixed; never do it yourself)
 x-spec: ./UC.md              # the behavioral SSOT (UC.md + the REQ-*.md in this directory)
@@ -25,7 +28,7 @@ x-updated: YYYY-MM-DD
 operations:
   # Key = the operation name (lowerCamelCase, unique within this file). It is the call site's identity
   <operationName>:
-    transport: http          # http | sdk | local-store | deeplink | push | device (enforced by spec-lint, which is authoritative)
+    transport: http          # http | sdk | local-store | deeplink | push | device | internal (enforced by spec-lint, which is authoritative)
     direction: outbound      # outbound = this app calls out / inbound = this app is called
     owned: true              # true = we decide this shape / false = we transcribe someone else's (add source:)
     auth: <scheme>           # a name defined in _shared authSchemes, or none. Never omit — "forgot" and "not needed" must stay distinguishable
