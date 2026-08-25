@@ -1,6 +1,7 @@
 # docs/_shared/components.yaml — the contracts' shared vocabulary ($ref targets)
 # What may go here: only what 2+ UCs use (auth schemes, error codes, shared DTOs)
-# A schema used by only one UC is written inline in that contract (never here)
+# A schema used by only one UC is written in that contract (inline, or under the contract's own top-level
+# schemas: when 2+ operations of that UC share it) — never here
 # Only the orchestrator writes here. Concurrent producers never append; they report the vocabulary they want added
 # Accepted YAML is the same strict subset as contract.yaml (no anchors/aliases, no block scalars)
 

@@ -18,6 +18,12 @@ name: spec-gate
 
 on:
   workflow_call:
+    inputs:
+      #   移行中（docs/specs/ が残る間）は "--ignore-legacy-layout" を渡す。移行完了時に外す（docs-migrate Phase 7）
+      spec_lint_args:
+        type: string
+        required: false
+        default: ""
 
 jobs:
   spec-gate:
@@ -32,9 +38,9 @@ jobs:
         with:
           node-version: 20
 
-      #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）
+      #   docs SSOT のフォーマット / ライフサイクル（契約カバレッジ warn 含む）。.spec-baseline.json があれば新規違反だけ落とす
       - name: Validate docs SSOT
-        run: node .claude/tools/spec-lint/spec-lint.mjs validate
+        run: node .claude/tools/spec-lint/spec-lint.mjs validate ${{ inputs.spec_lint_args }}
 
       #   トレーサビリティ（被覆・@covers/@implements・配置・baseline ラチェット）。traceconfig.json を持つホストのみ
       - name: Trace check (new violations fail)

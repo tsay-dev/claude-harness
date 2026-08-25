@@ -9,7 +9,8 @@ layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_c
   vocabularies, the contract's structure) are `../spec-lint/`'s job; the two tools do not overlap
 - **What it reads**: `traceconfig.json` at the host project root (seeded once from
   `.claude/templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
-  Annotations are found by regex on every line (`covers_pattern` / `implements_pattern`), so any language works
+  Annotations are found by regex on every line (`covers_pattern` / `implements_pattern`), so any language works;
+  `implements_pattern`'s capture may be a list (`@implements UC-001, REQ-009 / BR-015` — split on `,` or `/`)
 - **What it generates**: the coverage matrix (its report) and the whole-project index (`--index`). Both are
   derived, never committed (R-1003 / R-603)
 - **How it is used**: producers invoke it directly (`--only` narrows to their concern), the orchestrator runs
@@ -20,7 +21,9 @@ node trace-check.mjs [--root .] [--config traceconfig.json]   # the checks; exit
 node trace-check.mjs --update-baseline                        # record today's violations as the baseline
 node trace-check.mjs --strict                                 # ignore the baseline (everything fails)
 node trace-check.mjs --index                                  # the whole-project map, one line per ID
-node trace-check.mjs --next req                               # the next free ID (goal|uc|req|br|nfr|adr) — R-204
+node trace-check.mjs --next req                               # the next free ID (goal|uc|req|br|nfr|adr) — R-204. For req, IDs a UC.md table
+                                                              # has reserved count as taken even before the file exists. Concurrent Tasks never
+                                                              # call it themselves: the orchestrator calls once and hands each Task a disjoint band
 node trace-check.mjs --only C9,C12                            # judge only these checks (a producer's self-check)
 ```
 
@@ -35,12 +38,12 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C3 | a test `@covers` a REQ that does not exist | R-602 |
 | C4 | a BR is referenced by no UC and no REQ (a dead rule) | R-103 |
 | C5 | code `@implements` an ID that does not exist (an orphan reference) | R-701 |
-| C6 | a layer imports a layer it must not (`layering` in the config) | R-702 |
+| C6 | a layer imports a layer it must not (`layering` in the config; `layer_pattern` names the path level that is the layer — `{layer}` = the first level under `root`, `*/{layer}` = the second, as in `Features/<name>/Domain`) | R-702 |
 | C7 | the implementation's error codes are not a subset of `docs/_shared/components.yaml` `errorCodes` (only when `contract` is configured) | R-703 |
 | C8 | an `active` GOAL has no UC realizing it | — |
 | C9 | placement disagrees with the frontmatter: directory prefix ≠ `id`, `GOAL.md` / `UC.md` missing, a REQ's file name ≠ `id`, a REQ not directly under its own `uc:`, a UC's `goal:` ≠ its directory | R-1006 / R-1007 |
 | C10 | a declared partition class has no test, or an `active` REQ declares none (the lower bound) | R-1101 / R-1104 |
-| C11 | a test names no class, or an undeclared one (the upper bound on generated tests) | R-1102 / R-1103 |
+| C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test preceded by `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing | R-1102 / R-1103 |
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
 | C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
 
@@ -59,7 +62,9 @@ node .claude/tools/trace-check/trace-check.mjs                     # from now on
 
 Only "no worse than today" is enforced at first; repayment is planned. **The baseline only ever shrinks**
 (R-804) — a review sends back any growth. Whether `.trace-baseline.json` is monotonically decreasing is the
-project's health indicator.
+project's health indicator. The one sanctioned growth is the moment a check first applies to pre-existing material
+(a migration turning REQs `active`, so C1 / C10 see partitions the existing tests never exhausted): it is recorded
+once with `--update-baseline`, named with its count in that phase's report, and never repeated (`/docs-migrate` Phase 6).
 
 ## What green does and does not guarantee
 

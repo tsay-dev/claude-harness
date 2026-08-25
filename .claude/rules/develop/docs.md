@@ -24,7 +24,7 @@ paths:
 - **R-201 (MUST)** An ID is immutable; its content is mutable. Retirement is `status: withdrawn`, never deletion.
 - **R-202 (MUST)** The ID scheme: `GOAL-nn` / `UC-nnn` / `REQ-nnn` / `BR-nnn` / `NFR-nnn` / `ADR-nnnn` / `ACT-nn` / `KPI-nn`. Numbers are never reused. A host that needs different widths changes `traceconfig.json`.
 - **R-203 (MUST)** A definition is one ID, one file, declared in the frontmatter `id:` (the only exceptions are the `###` headings of `goals-backlog.md` and the ACT / KPI tables). Every other occurrence of an ID in a body is a reference.
-- **R-204 (MUST)** Numbers are assigned by `node .claude/tools/trace-check/trace-check.mjs --next <goal|uc|req|br|nfr|adr>`. Never hunt for the largest number by eye. A collision (the same ID defined twice) is a C12 failure.
+- **R-204 (MUST)** Numbers are assigned by `node .claude/tools/trace-check/trace-check.mjs --next <goal|uc|req|br|nfr|adr>`. Never hunt for the largest number by eye. A collision (the same ID defined twice) is a C12 failure. `--next req` counts the IDs a UC table has reserved, file or no file. Under concurrent producer Tasks the orchestrator calls `--next` once and hands each Task a disjoint band; the producers number from their band and never call `--next` themselves (concurrent calls return the same number).
 - **R-205 (MUST)** The numeric part is fixed-width and zero-padded (lexical order = numeric order). A number carries no meaning: never bake membership or classification into an ID (membership's SSOT is the frontmatter, R-1007).
 
 ## 3. What each document may hold
@@ -75,7 +75,7 @@ paths:
 - **R-801 (MUST) The upstream-first rule.** When implementation exposes an error or a gap in the spec, never finish by fixing only the code: update the upstream SSOT, then re-derive (contract → tests → implementation).
 - **R-802 (MUST)** A decision is changed by adding a new ADR with `supersedes:`. An existing ADR is never rewritten.
 - **R-803 (MUST)** The merge condition: tests green **and** zero new `trace-check` violations.
-- **R-804 (SHOULD)** The baseline (`.trace-baseline.json`, the ledger of pre-existing violations) only ever shrinks. Growth is sent back in review.
+- **R-804 (SHOULD)** The baseline (`.trace-baseline.json` and spec-lint's `.spec-baseline.json`, the ledgers of pre-existing violations) only ever shrinks. Growth is sent back in review. The one exception: when a check first applies to pre-existing material (a migration turning REQs `active`, a `fixed` contract landed before its REQs settle), the baseline records the pre-existing gaps once; the migration playbook names that point and the phase report names the count.
 
 ## 9. Kinds of control (choose knowingly)
 

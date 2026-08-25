@@ -24,6 +24,9 @@ supersedes: ADR-0000   # optional — only when this decision replaces an earlie
 
 ## 却下した選択肢
 
-<!-- The substance of the ADR. For each option, at least one sentence on why it was rejected. -->
+<!-- The substance of the ADR. For each option, at least one sentence on why it was rejected.
+     When the comparison was genuinely never recorded (an ADR written after the fact, in a migration), never invent options:
+     write exactly the fixed line below instead — spec-lint accepts it as a filled section, and the honesty is the record.
+     - **記録なし**: 当時の比較は記録されていない（移行時に付した記録） -->
 
 - **<案 A>**: <却下理由>

@@ -34,5 +34,11 @@ what not to write comes from each producer's craft.
 - Placeholders (`GOAL-00` / `UC-000` / `REQ-000` / `BR-000` / `NFR-000` / `ADR-0000` / `ACT-00` /
   `KPI-00` / `YYYY-MM-DD` / `<...>`) must be replaced before something leaves `draft` (spec-lint verifies this).
 - A frontmatter line whose comment says `optional` is optional; every other key in a template is required.
+- A contract may carry a top-level `schemas:` for shapes shared by 2+ operations of that one UC
+  (`$ref: "#/schemas/<Name>"`); a shape shared by 2+ UCs goes to `_shared/components.yaml`. An operation with
+  `errors: []` declares that it has no failure path, and spec-lint then requires no failure example (omitting
+  `errors` is not that declaration). A failure example may carry keys the request forbids.
+- An ADR whose comparison was never recorded (written after the fact) fills `## 却下した選択肢` with exactly
+  `- **記録なし**: 当時の比較は記録されていない（移行時に付した記録）`; spec-lint accepts it, and inventing options is forbidden.
 - The judgment rules for how to write (the negative lists, the craft) are not written into templates. Each producer's agent body holds them.
 - **The generated artifacts are written in Japanese.** The templates carry Japanese headings and frontmatter values for exactly that reason; the English text inside them is guidance for the producer and is not part of the artifact.

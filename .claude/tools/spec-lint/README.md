@@ -15,25 +15,55 @@ the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary con
   on ADRs, `draft|fixed` on contracts), `phase` (`定義|構造|実装|検証|完了`), `pattern` (the 5 EARS patterns),
   `transport` / `direction`
 - **Traceability is not its job**: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter
-  (C9), and numbering collisions are `../trace-check/`'s 12 checks
+  (C9), and numbering collisions are `../trace-check/`'s 13 checks
 - **Scope of contract verification**: a contract is **not OpenAPI** — it is the harness's own boundary-contract
   format (why: `docs/adr/ADR-0001`). This tool parses it with a hand-written parser for a deliberately narrow
   YAML subset (why: `docs/adr/ADR-0002`) and checks structure: `transport` / `direction` / `owned` validity,
   `wire` only on `http`, `entry` only on `deeplink` / `push`, `source` required when `owned: false`, `auth`
   explicit on every operation and resolving in `_shared`, `errors[].code` closed to `_shared` `errorCodes`, a
-  `requires` with no matching `PERMISSION_DENIED`, and `examples` agreeing with the declared `request`.
+  `requires` with no matching `PERMISSION_DENIED`, `errors: []` accepted as the declaration "no failure path"
+  (then no failure example is demanded; an omitted `errors` is not that declaration), and success `examples`
+  agreeing with the declared `request` (a failure example may carry forbidden keys — it is a counter-example).
   **Because the checker decides all of this, no agent needs to read a contract in full to judge conformance**
 - **How it is used**: producers invoke it directly to machine-verify their deliverables. Wiring `gate` into a
   commit-msg hook is also possible (optional, on each project's side)
 
 ```bash
 node spec-lint.mjs validate [--docs docs]     # format + lifecycle invariants + docs hygiene
-node spec-lint.mjs gate --message <file>       # verify a commit's UC: trailer (UC / REQs active, contract fixed)
+node spec-lint.mjs validate --ignore-legacy-layout   # keep checking the new layout while docs/specs/ still exists (mid-migration)
+node spec-lint.mjs validate --update-baseline # ledger today's errors in .spec-baseline.json; from then on only NEW errors fail
+node spec-lint.mjs validate --strict          # ignore the baseline (everything fails)   [--baseline <file> to relocate it]
+node spec-lint.mjs gate --message <file>       # verify a commit's UC: trailer (UC / REQs active, contract fixed) — never uses the baseline
 node spec-lint.mjs gate --uc UC-012            # the same for one UC
+node spec-lint.mjs convert <openapi.yaml> --uc UC-012 [--direction outbound|inbound] [--out contract.yaml] [--date YYYY-MM-DD]
 ```
 
 Exit codes: `0`=OK / `1`=violation / `2`=usage error. Node only (no external dependencies).
-On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-migrate` and returns `1`.
+On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-migrate` and returns `1` — unless
+`--ignore-legacy-layout` is given, in which case the old directory is a warning and the new layout is checked in full.
+
+## The baseline ratchet
+
+The same semantics as trace-check's: `--update-baseline` records every current error (keyed by file without line
+number + message, so unrelated edits that shift lines do not turn a known error into a new one); a later `validate`
+prints known errors as `known` and fails only on new ones; `--update-baseline` again shrinks the ledger once errors
+are repaid. Use it for an existing project's first adoption and for the known red of a migration (`fixed` contracts
+whose REQs are still `draft`, old-format files not yet converted). The ledger only shrinks (R-804) except at the
+points `/docs-migrate` names. The `gate` command ignores the baseline — an implementation start is never excused.
+
+## convert (old OpenAPI contract → harness contract)
+
+`convert` is the mechanical half of the format change decided in `docs/adr/ADR-0001`: it reads an OpenAPI 3.x
+contract with the lenient parser (block scalars folded), preserves the shape, and writes a harness contract:
+`paths.*.<method>` (`operationId`) → `operations.<name>` with `transport: http` and `wire`; path / query
+`parameters` + `requestBody` → one `request` object; the first 2xx → `response`; each 4xx / 5xx → `errors[]`
+(`code` from `x-error-code`, else the response schema's `code` `const` / `enum`, else a status default such as
+`INVALID_INPUT` for 400); `example(s)` → `examples`; `components.schemas` → the contract's own top-level `schemas:`
+with `$ref` rewritten to `#/schemas/<Name>`; `security` → `auth` (`[]` = `none`); `x-status` carried over.
+Every judgment it cannot make — the direction (`--direction`, default `outbound` = this app calls the API; a server's
+own API is `inbound`), a missing `security`, a guessed error code, a missing `summary`, the UC (`--uc`) — is left as a
+`# convert:` note at the end of the file and printed to stderr. An operation with no 4xx in the old contract comes out
+with `errors: []` (no failure path is invented). The result is meant to pass `validate` after the notes are resolved.
 
 ## What it treats as an error (lifecycle and reference invariants)
 
@@ -45,7 +75,9 @@ On detecting the old layout (`docs/specs/F-xxx-<slug>/`) it prompts for `/docs-m
   the 5 EARS patterns, a `uc:` that disagrees with the directory
 - A settled UC whose state × event table has an empty cell (R-501), or whose exception sweep lacks one of the 4
   axes (R-502)
-- A settled document still carrying template placeholders (`UC-000`, `YYYY-MM-DD`, `<...>` …). A REQ's
+- A settled document still carrying template placeholders (`UC-000`, `YYYY-MM-DD`, `<...>` …). A `<...>` counts
+  when it is a string the templates themselves use, or a non-ASCII `<…>` not glued to a following word (`<言語>.lproj`
+  is a meta-variable, not a hole); HTML comments, code spans / fences, and YAML comments are never scanned. A REQ's
   `## 検証方針` is exempt — its content is trace-check's C2 / C10
 - A contract `fixed` while its UC is `draft` or while any of its REQs is still `draft`; a UC `draft` whose
   `phase` has advanced past `定義`; an `x-spec` or `$ref` that does not resolve; an ADR whose `supersedes`
@@ -62,7 +94,7 @@ the negative lists is each producer's craft):
 
 | Detection | Target | What it means |
 | --- | --- | --- |
-| Dates in parentheses in the body (`（2026-01-01` and the like) | all | git holds the history. Integrate the body into the present tense |
+| Dates in parentheses in the body (`（2026-01-01 改訂` and the like; a date followed by a particle — `（2026-02-29 は不正` — is a value under discussion, not history; code spans are skipped) | all | git holds the history. Integrate the body into the present tense |
 | Implementation anchors (code file paths) | UC / REQ (not BR — a BR legitimately says "値の SSOT は `<path>`", R-102) | The code is the SSOT. Written into docs, it rots |
 | Internal API references (`Class::method`) | UC / REQ | Written in the vocabulary of observable behavior |
 | A "known issues / residual risks / backlog" section | UC / REQ | Open items are pushed out to issue tracking |
@@ -72,7 +104,7 @@ the negative lists is each producer's craft):
 | An NFR without a measurement, a BR without `**意図**` | NFR / BR | R-104 / the rule holds existence and intent |
 | `x-*` restating business rules, a long `description` | contract | Rules and evaluation order belong to UC / REQ / BR. A contract holds only the shape |
 | A UC `active` with no `contract.yaml` | UC | Declare zero boundaries (`operations: {}` + `x-no-boundary`) rather than omitting the file |
-| A UC whose exception sweep derives cases but whose contract has no `errors` | contract | The failure path has no shape at the boundary |
+| A UC whose exception sweep derives cases but whose contract has no `errors` (a 導出 cell starting with `なし` / `—` / `-`, reason or not, counts as no derivation) | contract | The failure path has no shape at the boundary |
 | `PRD.md` present, singletons missing | docs root | The old layout's remains; `/docs-migrate` |
 
 Why these are not errors: so that an existing project's `validate` does not die instantly (cleanup happens

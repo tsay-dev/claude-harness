@@ -158,8 +158,8 @@ claude-harness/
       │    └── docs-migrate/                       # INVENTORY（/docs-migrate Phase 0 の棚卸し表）
       │
       └── tools/                            # 🔧 実行アセット（バリデータ・生成器）
-           ├── spec-lint/                         # docs SSOT の書式・ライフサイクル検証（producer が直接叩く）
-           ├── trace-check/                       # トレーサビリティ検査 C1–C12（被覆・@covers/@implements・配置・baseline ラチェット・--next 採番・--index）
+           ├── spec-lint/                         # docs SSOT の書式・ライフサイクル検証（producer が直接叩く。baseline ラチェット・旧 OpenAPI 契約の convert）
+           ├── trace-check/                       # トレーサビリティ検査 C1–C13（被覆・@covers/@implements・配置・baseline ラチェット・--next 採番・--index）
            ├── gate-hook/                          # develop skill §2 実装着手ゲートの機械強制（PreToolUse フック・任意有効化）
            └── cursor-sync/                        # .claude の3木(rules/skills/agents) → Cursor の .cursor/ へ射影
 ```
@@ -272,7 +272,7 @@ harness は**汎用ルールと検証ツールだけ**を持ち、案件固有�
 | **platform / framework**（例: これは `native/expo`） | orchestrator が規約葉の解決を省略できる（develop skill §6-A） |
 | **検証コマンド**（型検査 / lint / テストの実行コマンド） | 実装体が返す直前にこれを全部通す。**宣言が無ければ `package.json` の scripts 等から特定を試み、通せなかったものを報告に載せる**（捏造はしない） |
 | **住所の取り決め**（コンポーネントの置き場、切り出したモジュールの置き場など） | 規約葉が「harness では固定しない」としている項目。test-designer と実装体で解釈が割れると赤緑ループが噛み合わない |
-| **`traceconfig.json`**（ホスト直下） | trace-check の走査対象（`source` / `tests` / `layering` / `contract`）と ID の桁数。orchestrator が初回にテンプレートから seed し、以後はホストが保守する（`.trace-baseline.json` は既存違反の台帳で、単調減少させる） |
+| **`traceconfig.json`**（ホスト直下） | trace-check の走査対象（`source` / `tests` / `layering` / `contract`）と ID の桁数。orchestrator が初回にテンプレートから seed し、以後はホストが保守する（`.trace-baseline.json` / `.spec-baseline.json` は既存違反の台帳で、単調減少させる。増えてよいのは docs-migrate が名指しする 2 点だけ） |
 
 > **機械チェックの「設置」は各プロジェクトの責務**という方針は一貫しています（§ 上の 💡 参照）。harness 側は「何を通すべきか」を agent body と規約葉に持ち、**何をどう叩くかはプロジェクトが宣言する**という分担です。
 

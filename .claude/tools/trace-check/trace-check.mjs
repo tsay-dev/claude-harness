@@ -27,7 +27,8 @@
 //    C9   パス整合: GOAL / UC ディレクトリ名と frontmatter id・goal の一致、ノード定義ファイルの存在、
 //         REQ のファイル名 = id、REQ が自身の uc の直下にあること
 //    C10  宣言された全分割クラスに 1 件以上のテストがあるか（未検証クラス / クラス未宣言）
-//    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）
+//    C11  全テストが宣言済みクラスを指しているか（方針にないテスト ＝ 生成上限違反）。
+//         traceconfig の tests.test_pattern があれば、@covers を持たないテスト関数も数える（注釈忘れは機械の目に映らない穴）
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは structure-oracle の判断に残る）
@@ -37,7 +38,8 @@
 //    node trace-check.mjs --update-baseline                            現状の違反を baseline に記録
 //    node trace-check.mjs --strict                                     baseline を無視して全違反を FAIL
 //    node trace-check.mjs --index                                      1 行 1 ID の索引を出力（生成物）
-//    node trace-check.mjs --next <goal|uc|req|br|nfr|adr>              次の空き ID を出力（採番はこれで / R-204）
+//    node trace-check.mjs --next <goal|uc|req|br|nfr|adr>              次の空き ID を出力（採番はこれで / R-204。
+//                                                                      req は UC.md の表が予約した ID も使用済みと数える）
 //    node trace-check.mjs --only C9,C12                                指定の検査項目だけ判定（producer の自己検査用）
 //
 //  終了コード: 0 = 新規違反なし / 1 = 新規違反あり / 2 = 使い方エラー
@@ -217,6 +219,10 @@ function nextId(cfg, kind) {
 	const backlog = p(cfg, "docs.goals_backlog");
 	if (kind === "goal" && existsSync(backlog))
 		for (const x of read(backlog).matchAll(/^###\s+GOAL-(\d+)/gm)) nums.push(Number(x[1]));
+	//  UC.md の状態 × イベント表が予約した REQ ID は、ファイルがまだ無くても使用済み（別 UC の定義者に同じ番号を渡さない）
+	if (kind === "req")
+		for (const f of walk(p(cfg, "docs.goals_dir"), [".md"]))
+			if (basename(f) === "UC.md") for (const x of read(f).matchAll(/\bREQ-(\d+)\b/g)) nums.push(Number(x[1]));
 	const next = nums.length ? Math.max(...nums) + 1 : 1;
 	return `${prefix}${String(next).padStart(width, "0")}`;
 }
@@ -246,11 +252,40 @@ function collectTestCoverage(cfg, coversRe) {
 	return coverage;
 }
 
+//  implements_pattern の捕捉 1 は「ID の並び」でもよい（`@implements UC-001, REQ-009 / BR-015`）。区切りで割って 1 件ずつ数える
 function collectSourceAnnotations(cfg, implRe, files = iterFiles(cfg, "source")) {
 	const found = {}; //  id -> Set<file>
 	for (const path of files)
-		for (const m of read(path).matchAll(implRe)) (found[m[1]] ||= new Set()).add(rel(cfg, path));
+		for (const m of read(path).matchAll(implRe))
+			for (const id of m[1].split(/\s*[,、\/]\s*/)) if (id) (found[id] ||= new Set()).add(rel(cfg, path));
 	return found;
+}
+
+//  test_pattern（テスト関数の印）があるとき、@covers を持たないテスト関数を数える。
+//  規約: @covers はテスト関数の直前のコメント（前のテストの印より後）か同じ行に書く。
+//  exempt_pattern の印（`// 仕様外:` など）がその区間にあるテストは、明示の除外として数えない
+function collectUnannotatedTests(cfg) {
+	const sec = cfg.tests;
+	if (!sec || !sec.test_pattern) return null;
+	const testRe = new RegExp(sec.test_pattern);
+	const coversRe = new RegExp(cfg.covers_pattern);
+	const exemptRe = sec.exempt_pattern ? new RegExp(sec.exempt_pattern) : null;
+	const out = { total: 0, exempt: 0, missing: [] };
+	for (const path of iterFiles(cfg, "tests")) {
+		let covered = false;
+		let exempt = false;
+		read(path).split(/\r?\n/).forEach((line, i) => {
+			if (coversRe.test(line)) covered = true;
+			if (exemptRe && exemptRe.test(line)) exempt = true;
+			if (!testRe.test(line)) return;
+			out.total++;
+			if (exempt) out.exempt++;
+			else if (!covered) out.missing.push(`${basename(path)}:${i + 1}`);
+			covered = false;
+			exempt = false;
+		});
+	}
+	return out;
 }
 
 //  スキーマ源（migration / schema.prisma / モデル定義）。R-102 で DB 設計の SSOT は native 形式にあり、docs には無い
@@ -265,6 +300,19 @@ function schemaFiles(cfg) {
 
 const DB_ENFORCED_RE = /\b(database|db)\b/i;
 
+//  layer_pattern（既定 "{layer}" ＝ root 直下の第 1 階層）で、パスのどの階層が層名かを決める。
+//  "*/{layer}" なら Features/<機能>/Domain のような第 2 階層の層を読む（* は任意の 1 階層）
+function layerOf(parts, pattern) {
+	const segs = pattern.split("/").filter(Boolean);
+	if (parts.length <= segs.length) return null;
+	let layer = null;
+	for (let i = 0; i < segs.length; i++) {
+		if (segs[i] === "{layer}") layer = parts[i];
+		else if (segs[i] !== "*" && segs[i] !== parts[i]) return null;
+	}
+	return layer;
+}
+
 function checkLayering(cfg) {
 	const lay = cfg.layering;
 	if (!lay) return [];
@@ -272,7 +320,7 @@ function checkLayering(cfg) {
 	const violations = [];
 	for (const path of walk(root, cfg.source.extensions)) {
 		const parts = relative(root, path).split(/[\\/]/);
-		const layer = parts.length > 1 ? parts[0] : null;
+		const layer = layerOf(parts, lay.layer_pattern || "{layer}");
 		if (!layer || !(layer in lay.forbidden)) continue;
 		const text = read(path);
 		for (const forbidden of lay.forbidden[layer]) {
@@ -345,7 +393,7 @@ function runChecks(cfg) {
 	const activeReqs = Object.keys(corpus.reqs).filter((r) => corpus.reqs[r].status === "active").sort();
 	const failures = [];
 
-	for (const req of activeReqs) if (!reqTests[req]) failures.push(`[C1] ${req} を被覆するテストが存在しない（未検証の要求）`);
+	for (const req of activeReqs) if (!reqTests[req]) failures.push(`[C1] ${req} を被覆するテストが存在しない（未検証の要件）`);
 	for (const req of activeReqs) if (!corpus.reqs[req].hasPolicy) failures.push(`[C2] ${req} のファイルに「${POLICY_HEADING}」セクションがない`);
 	for (const req of Object.keys(reqTests).sort()) if (!(req in corpus.reqs)) failures.push(`[C3] テストが未定義の ${req} を @covers している`);
 	for (const br of Object.keys(brs).sort()) if (!referencedBrs.has(br)) failures.push(`[C4] ${br} がどの UC / REQ からも参照されていない（死んだ規則）`);
@@ -378,6 +426,11 @@ function runChecks(cfg) {
 		else if (!declared.includes(c.klass))
 			failures.push(`[C11] ${w}: 未宣言のクラス ${c.req}#${c.klass} を指している。テストを増やす前に検証方針へクラスを宣言すること（生成上限）`);
 	}
+	//  C11 の派生: @covers を持たないテスト関数（tests.test_pattern があるときだけ。注釈忘れは上限にも下限にも映らない）
+	const unannotated = collectUnannotatedTests(cfg);
+	if (unannotated)
+		for (const w of unannotated.missing)
+			failures.push(`[C11] ${w}: @covers の無いテスト（tests.test_pattern に一致）。仕様外なら tests.exempt_pattern の印を書く`);
 
 	//  C13: DB で強制する規則にはスキーマ側の制約（@implements）が要る。schema 未設定なら判定しない
 	if (schema) {
@@ -400,7 +453,8 @@ function runChecks(cfg) {
 	const nClasses = Object.values(corpus.reqs).reduce((n, r) => n + r.classes.length, 0);
 	lines.push(
 		`  GOAL: ${Object.keys(corpus.goals).length} (active: ${nActiveGoals}) / UC: ${Object.keys(corpus.ucs).length}` +
-			` / REQ: ${Object.keys(corpus.reqs).length} / 分割クラス: ${nClasses} / BR: ${Object.keys(brs).length} / テスト: ${nTests}`,
+			` / REQ: ${Object.keys(corpus.reqs).length} / 分割クラス: ${nClasses} / BR: ${Object.keys(brs).length} / テスト: ${nTests}` +
+			(unannotated ? ` / テスト関数: ${unannotated.total}（@covers なし ${unannotated.missing.length} / 仕様外 ${unannotated.exempt}）` : ""),
 	);
 	for (const goal of Object.keys(corpus.goals).sort()) {
 		const g = corpus.goals[goal];

@@ -7,6 +7,16 @@
 #   - block scalars (| / >) are an error — long prose belongs in UC.md or a REQ
 # Placeholders (UC-000 / YYYY-MM-DD / <...>) must be replaced with real values before it is marked fixed
 # Write summary and when text in Japanese
+#
+# Which transport — decide by what the call actually crosses, never by who calls whom inside the app:
+#   http         a request leaves the process over HTTP (our own server or someone else's)
+#   sdk          a third party's SDK surface (Firebase, Supabase, a payment SDK …) — usually owned: false + source:
+#   local-store  persistence on the device / the host (UserDefaults, Keychain, files, SQLite, IndexedDB …)
+#   device       an OS capability behind a permission or hardware (camera, HealthKit, calendar, location …) — declare requires:
+#   deeplink     the app is opened by a URL (always inbound)     push  the app receives a notification payload (always inbound)
+#   A boundary between two modules of the same app (UI ↔ logic, feature ↔ feature, a repository protocol) is NOT an
+#   operation: the language's type system is its contract (R-1204). A UC whose only boundaries are internal declares
+#   operations: {} + x-no-boundary. Never model an internal call as http or sdk to have "something" in the contract
 x-uc: UC-000                 # must match the ID part of the directory name UC-000-<slug> (trace-check C9)
 x-status: draft              # draft | fixed (the caller marks it fixed; never do it yourself)
 x-spec: ./UC.md              # the behavioral SSOT (UC.md + the REQ-*.md in this directory)
@@ -39,20 +49,37 @@ operations:
       properties:
         id: { type: integer }
         status: { type: string, const: ok }
-    errors:                  # one entry per triggering condition. code must be defined in _shared errorCodes
+    errors:                  # one entry per triggering condition. code must be defined in _shared errorCodes.
+                             # errors: [] declares "this operation has no failure path" (reading a stored setting, say):
+                             # no failure example is required then. Omitting the key is NOT that declaration — omitted and
+                             # empty are kept distinct, the same way auth: none is distinct from a missing auth
       - code: INVALID_INPUT
         when: <発生条件を 1 行>   # a word or a single line; never restate the business rule
         wire: { status: 400 }  # only when transport is http
       - code: FORBIDDEN
         when: <発生条件を 1 行>
         wire: { status: 403 }
-    examples:                # mandatory once fixed: at least one success and one failure, with real values
+    examples:                # mandatory once fixed: at least one success and (unless errors: []) one failure, with real values.
+                             # A failure example may carry keys the request forbids (additionalProperties: false / not:) —
+                             # the counter-example is the point, so spec-lint matches only success examples against request.properties
       ok:
         request: { i_xxx: "abc" }
         response: { id: 1, status: ok }
       invalid:
         request: { i_xxx: "" }
         error: INVALID_INPUT
+
+# --- Shapes shared by 2+ operations of THIS UC (optional top-level key) ---
+#
+#  Reference them as $ref: "#/schemas/<Name>". A shape used by 2+ UCs goes to ../../../_shared/components.yaml instead
+#  (the orchestrator adds it; you report the request). A shape used by a single operation stays inline in that operation
+#
+#   schemas:
+#     VoiceComposeState:
+#       type: object
+#       required: [phase]
+#       properties:
+#         phase: { type: string, enum: [idle, recording, done] }
 
 # --- Variants by transport (uncomment the ones this UC needs) ---
 #

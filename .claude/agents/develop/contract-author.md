@@ -32,7 +32,7 @@ Read the UC's main scenario, its state × event table, and each REQ's sentence, 
 
 | Axis | How you decide it |
 | --- | --- |
-| `transport` | The route it actually crosses: `http` / `sdk` / `local-store` / `deeplink` / `push` / `device` |
+| `transport` | The route it actually crosses: `http` / `sdk` / `local-store` / `deeplink` / `push` / `device` — the decision table in the template's header is authoritative. A boundary between two modules of the same app is not an operation at all (the type system is its contract, R-1204); never model it as `http` or `sdk` to have something in the file |
 | `direction` | `outbound` when this app calls out, `inbound` when this app is called (a deeplink and a push are always inbound) |
 | `owned` | `true` when the shape is ours to settle, `false` when we transcribe someone else's — a third party's API, an SDK's surface. `false` requires `source` |
 | `auth` | The scheme this operation actually requires, or `none`. Never omit it |
@@ -46,8 +46,8 @@ Read the UC's main scenario, its state × event table, and each REQ's sentence, 
 - **Enumerate errors per triggering condition**, each as a `code` drawn from `_shared` plus a one-line `when`. Never restate the business rule in `when`.
 - **A permission-gated operation must carry its denial.** When you write `requires`, the corresponding `PERMISSION_DENIED` must be in `errors` — otherwise the contract describes only the happy path of a capability that routinely gets refused.
 - **`wire` is http only, `entry` is deeplink / push only.** Do not let HTTP vocabulary (methods, status codes) leak onto other transports.
-- **Shared vocabulary goes through `_shared`.** Auth schemes and error codes are referenced by name; a DTO used by 2+ UCs is `$ref`ed from `../../../_shared/components.yaml`. Never redefine them yourself. **Never write into `_shared` itself** — when you need vocabulary added (a new error code, an auth scheme, a shared DTO), put "the vocabulary you want added and its definition" in your report and return (the caller applies it). A schema used by only one feature is written inline.
-- **Examples are mandatory.** At least one success and one failure per operation, with real values implementations and tests can copy-paste. A failure example names the `error` code.
+- **Shared vocabulary goes through `_shared`.** Auth schemes and error codes are referenced by name; a DTO used by 2+ UCs is `$ref`ed from `../../../_shared/components.yaml`. Never redefine them yourself. **Never write into `_shared` itself** — when you need vocabulary added (a new error code, an auth scheme, a shared DTO), put "the vocabulary you want added and its definition" in your report and return (the caller applies it). A shape shared by 2+ operations of this one UC goes under the contract's own top-level `schemas:` (`$ref: "#/schemas/<Name>"`); a shape used by a single operation stays inline.
+- **Examples are mandatory.** At least one success and one failure per operation, with real values implementations and tests can copy-paste. A failure example names the `error` code, and may carry keys the request forbids — that counter-example is the point. **An operation that genuinely has no failure path declares `errors: []`** (a read of a stored setting, say) and carries only a success example; never invent an error code to satisfy the checker, and never omit `errors` to mean the same thing (omitted and empty are distinct).
 - **A use case that crosses no boundary declares it.** Write `operations: {}` with `x-no-boundary` giving the reason in one line. This is a declaration, not an exemption — if you cannot state the reason, the use case has a boundary you have not found yet.
 - **Leave no placeholder behind** (`UC-000`, `YYYY-MM-DD`, `<...>`).
 - **Write in the accepted YAML subset.** Anchors and aliases (`&` / `*`) and block scalars (`|` / `>`) are rejected: share through `_shared`, and put long prose in UC / REQ.
