@@ -36,9 +36,15 @@ jobs:
       - name: Validate docs SSOT
         run: node .claude/tools/spec-lint/spec-lint.mjs validate
 
-      #   PR の各コミットの Feature: トレーラを検査（契約が無い/未 fixed なら落とす）
+      #   トレーサビリティ（被覆・@covers/@implements・配置・baseline ラチェット）。traceconfig.json を持つホストのみ
+      - name: Trace check (new violations fail)
+        shell: bash
+        run: |
+          if [ -f traceconfig.json ]; then node .claude/tools/trace-check/trace-check.mjs; else echo "traceconfig.json なし: trace-check をスキップ"; fi
+
+      #   PR の各コミットの UC: トレーラを検査（UC / REQ が active でない・契約が無い/未 fixed なら落とす）
       #   push 単発では base が不定なため PR のみ（validate は常時走る）
-      - name: Gate commits (Feature トレーラの契約 fixed を要求)
+      - name: Gate commits (UC トレーラの UC active・契約 fixed を要求)
         if: ${{ github.event_name == 'pull_request' }}
         shell: bash
         run: |

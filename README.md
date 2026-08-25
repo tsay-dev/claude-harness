@@ -40,7 +40,7 @@ AI（特に Claude）の**ベースライン・コンテキストをゼロに保
    例) 「開発したい」/develop → develop skill に orchestrator の核・実行台本が丸ごと載る
 
 ③ producer の craft … 成果物の書式は、それを生成するサブエージェント本文が SSOT
-   例) 機能一覧/機能詳細の書式 → agents/develop/ssot-definer.md（spawn 時のみロード）
+   例) UC / REQ の書き方 → agents/develop/usecase-definer.md / requirement-definer.md（spawn 時のみロード）
        契約の書式             → agents/develop/contract-author.md（同上）
 ```
 
@@ -50,7 +50,7 @@ AI（特に Claude）の**ベースライン・コンテキストをゼロに保
 | 要素 | 例 | 役割 | ロード契機 |
 | --- | --- | --- | --- |
 | 📦 ケース（葉） | `.../<framework>/*.md`（全 platform に効くものは `<scene>/*.md`） | 実ルール（規約・思想） | `paths` にマッチしたファイルを触った時 |
-| 🧬 producer craft | `agents/develop/ssot-definer.md` の書式節 | 成果物の書式 SSOT | 当該サブエージェント spawn 時のみ |
+| 🧬 producer craft | `agents/develop/requirement-definer.md` の負のリスト | 成果物の書き方（craft）の SSOT。書式そのものは `templates/` | 当該サブエージェント spawn 時のみ |
 | 🛠️ スキル | `.claude/skills/<name>/SKILL.md` | 手続きの入口（develop は orchestrator の判断核・実行台本を内包） | `description` で自動／`/name` で明示 |
 | 🤖 エージェント | `.claude/agents/develop/<name>.md` | 専門サブエージェントの人格 | orchestrator が Task 起動する時 |
 
@@ -69,6 +69,7 @@ claude-harness/
       ├── rules/                           # 📦 葉のみ。目次(index.md)は持たない
       │    ├── develop/                    #   🎬 シーン: システム開発（旧 engineering）※判断核・台本は develop skill 内
       │    │    ├── comments.md            #     💬 scene 共通則: コード内コメント（全 platform に効く）
+      │    │    ├── docs.md                #     📚 scene 共通則: SDD/SSOT 規約（R-ID 付き。docs/** を触ると載る）
       │    │    ├── web/                   #     🖥️ プラットフォーム: Web（builder 規約）
       │    │    │    ├── crow/             #       📦 framework: crow（PHP独自FW）
       │    │    │    │    ├── common/      #         🔗 全レイヤ共通
@@ -87,7 +88,7 @@ claude-harness/
       │    │    │    └── next/             #       📦 framework: Next.js（App Router）
       │    │    │         ├── common/      #         🔗 全レイヤ共通
       │    │    │         │    ├── coding.md #          TS の共通則・export・秘密
-      │    │    │         │    └── testing.md #         ランナー契約・スイート分離・F-xxx
+      │    │    │         │    └── testing.md #         ランナー契約・スイート分離・UC-nnn / @covers
       │    │    │         ├── frontend/    #         🎨 RSC / Client 境界
       │    │    │         │    ├── coding.md #          Server 既定・page は配線
       │    │    │         │    ├── dataflow.md #        一方向データフロー・状態の置き場
@@ -123,10 +124,12 @@ claude-harness/
       │
       ├── agents/                           # 🤖 サブエージェント（key 別に集約）
       │    ├── develop/                      #   開発（/develop・/develop-light・/attack の orchestrator が Task 起動）
-      │    │    ├── ssot-definer.md                # Phase1 機能一覧・詳細（人間ゲート）
+      │    │    ├── domain-definer.md              # Phase1 vision / glossary / actors / GOAL / NFR（人間ゲート）
+      │    │    ├── usecase-definer.md             # Phase1 UC.md＝主シナリオ＋状態×イベント表（UC ごと並行・人間ゲート）
+      │    │    ├── requirement-definer.md         # Phase1 REQ（EARS 1 文）＋BR 括り出し（人間ゲート）
       │    │    ├── db-designer.md, contract-author.md  # Phase3 構造（DB＝人間ゲート／契約＝機械）
       │    │    ├── structure-oracle.md            # 構造整合の独立判定（本線 /develop）
-      │    │    ├── test-designer.md               # GWT＋契約から BE Red テスト（実装前。FE は当面起票しない）
+      │    │    ├── test-designer.md               # REQ の分割クラス宣言＋BE Red テスト（@covers REQ#class。FE は当面起票しない）
       │    │    ├── frontend-ui-implementer.md     # Phase4a-1 見た目（ビュー層・媒体は platform 依存）
       │    │    ├── frontend-logic-implementer.md  # Phase4a-2 frontend 処理・純粋関数
       │    │    ├── backend-logic-implementer.md   # Phase4b backend 処理・純粋関数
@@ -134,7 +137,7 @@ claude-harness/
       │    │    ├── slice-attacker.md, system-attacker.md # 攻撃（/attack 専用・develop ループ外）
       │    │    ├── skeleton-runner.md             # 高リスク時のみ E2E 貫通（使い捨て）
       │    │    ├── committer.md                    # commit / PR の実行専任（git 規約を body に内包）
-      │    │    └── adr-writer.md                   # アーキテクチャ決定記録(ADR)を書く producer（書式を body に内包）
+      │    │    └── adr-writer.md                   # アーキテクチャ決定記録(ADR)を書く producer（書式は templates/develop/ADR.md）
       │    └── translate-manga-ko-ja/        #   翻訳（/translate-manga-ko-ja の orchestrator が Task 起動）
       │         ├── maker.md                       # 翻訳の1脳（Stage1–4：対訳シート＋master差分提案）
       │         └── judge.md                       # 独立レビュー（Stage5：ブレ・口調矛盾・⚠漏れを反証）
@@ -146,20 +149,22 @@ claude-harness/
       │    ├── attack/SKILL.md                     # 🔴 レッドチーム攻撃の指揮者。agents は develop 共用。入口 /attack（人間明示のみ・完成条件外）
       │    ├── translate-manga-ko-ja/SKILL.md      # 🈯 翻訳の指揮者（orchestrator）。maker/judge を起動。入口 /translate-manga-ko-ja
       │    ├── grilling/SKILL.md                   # 計画・設計を詰めるインタビュー
-      │    └── docs-migrate/SKILL.md               # 🔧 docs の現行レイアウト準拠検査＋移行。入口 /docs-migrate
-      │                                            #   （準拠の定義は持たない＝spec-lint とテンプレートを正として回すだけ）
+      │    └── docs-migrate/SKILL.md               # 🔧 既存プロジェクトの SDD 準拠化（Phase 0–7: 棚卸し→骨格→語彙→UC→REQ/BR→契約/ADR→検証接続→返済）。入口 /docs-migrate
+      │                                            #   （準拠の定義は持たない＝spec-lint / trace-check とテンプレートを正として回すだけ）
       │
       ├── templates/                        # 📄 docs 成果物のテンプレート（書式の SSOT）
-      │    └── develop/                            # PRD / design / specs 台帳 / spec / contract(境界契約) / _shared
-      │                                            #   producer が雛形に使い、spec-lint が必須項目を導出する（書式改定は1箇所）
+      │    ├── develop/                            # vision / glossary / actors / GOAL / UC / REQ / BR / NFR / ADR / contract(境界契約) / components / traceconfig
+      │    │                                        #   producer が雛形に使い、spec-lint が必須項目を導出する（書式改定は1箇所）
+      │    └── docs-migrate/                       # INVENTORY（/docs-migrate Phase 0 の棚卸し表）
       │
       └── tools/                            # 🔧 実行アセット（バリデータ・生成器）
-           ├── spec-lint/                         # docs SSOT 検証（producer が直接叩く）
+           ├── spec-lint/                         # docs SSOT の書式・ライフサイクル検証（producer が直接叩く）
+           ├── trace-check/                       # トレーサビリティ検査 C1–C12（被覆・@covers/@implements・配置・baseline ラチェット・--next 採番・--index）
            ├── gate-hook/                          # develop skill §2 実装着手ゲートの機械強制（PreToolUse フック・任意有効化）
            └── cursor-sync/                        # .claude の3木(rules/skills/agents) → Cursor の .cursor/ へ射影
 ```
 
-> 💡 **harness が同梱する機械チェックは「検証ツール」まで**（`tools/spec-lint`＝docs SSOT 検証、`tools/gate-hook`＝develop skill §2 の書き込み時停止線）。spec-lint は producer がタスク中に直接叩く。
+> 💡 **harness が同梱する機械チェックは「検証ツール」まで**（`tools/spec-lint`＝docs SSOT の書式・ライフサイクル検証、`tools/trace-check`＝docs ↔ コードのトレーサビリティ検査、`tools/gate-hook`＝develop skill §2 の書き込み時停止線）。spec-lint / trace-check は producer がタスク中に直接叩き、スライス完了時とCI でも回す（マージ条件＝テスト緑＋trace-check 新規違反ゼロ）。
 > **フック / CI への配線・ブランチ保護といった「設置」は各プロジェクトの責務**（gate-hook もスクリプト＋手順の同梱までで、settings への配線＝有効化は取り込み先の任意。かつて `enforcer` エージェント＋`conventions/enforcement/` が担った常設の強制は撤去済み）。durable な知識は agent body / rules に畳み、実行アセットは `.claude/tools/` に置く。
 
 ## 🧱 手続きの3木（skills / agents / rules を同じキーで揃える）
@@ -169,13 +174,39 @@ orchestrator を伴う手続き（`develop`・`translate-manga-ko-ja` など）�
 | 木 | 役割（何の SSOT か） | develop | translate-manga-ko-ja |
 | --- | --- | --- | --- |
 | `skills/<key>/SKILL.md` | 入口＝orchestrator の判断核・実行台本（**どう回すか**） | `skills/develop/` | `skills/translate-manga-ko-ja/` |
-| `agents/<key>/*.md` | orchestrator が Task 起動する専門サブエージェントの人格（**craft** の SSOT） | `agents/develop/`（ssot-definer・committer …） | `agents/translate-manga-ko-ja/`（maker・judge） |
-| `rules/<key>/**` | paths ゲートで遅延ロードされる型・規約の葉（**書式** の SSOT） | `rules/develop/web/crow/` | `rules/translate-manga-ko-ja/` |
+| `agents/<key>/*.md` | orchestrator が Task 起動する専門サブエージェントの人格（**craft** の SSOT） | `agents/develop/`（domain-definer・usecase-definer・requirement-definer・committer …） | `agents/translate-manga-ko-ja/`（maker・judge） |
+| `rules/<key>/**` | paths ゲートで遅延ロードされる型・規約の葉（**規約** の SSOT） | `rules/develop/docs.md`（scene 共通）＋`rules/develop/web/crow/` | `rules/translate-manga-ko-ja/` |
 
 - **skill は複製しない。** 型は rules、craft は agent body が SSOT。skill は「どう回すか」だけを持ち、両者の中身をコピペしない。
 - **作る主体 ≠ 判定する主体。** どちらの手続きも producer（develop=implementer 群 / 翻訳=maker）と独立オラクル（develop=oracle/attacker 群 / 翻訳=judge）を**別 agent・別コンテキスト**に分ける。
 - **キー名は3木で一致させる。** 新しい手続きを足すときも、この3木を同名で生やす（skills/agents/rules すべて同じ `<key>`）。
 - **例外 — orchestrator 変種**: 台本だけ薄い別入口が要るとき（例: `skills/develop-light/`、`skills/attack/`）は、**agents / rules を親キー（`develop`）と共用してよい**。フル3木を複製しない。`develop-light` は成果物形は本線と同型で、検証の厚みだけ落とす（人間明示の `/develop-light` のみ。AI 自己選択禁止）。`attack` は develop の完成条件外の任意攻撃（人間明示の `/attack` のみ）。
+
+## 📐 docs の構成（SDD / SSOT）
+
+harness が生成・検証する docs は **1 ID 1 ファイル**、**縦（GOAL → UC → REQ）は木でファイルシステムに一致**、**横断（BR / NFR / ADR / glossary）は中央**、**索引はコミットしない**、という形をとる（sdd-kit の構成。採用理由は `docs/adr/ADR-0003`）。
+
+```text
+docs/
+ ├── 00-vision.md  01-glossary.md  02-actors.md  goals-backlog.md   # 単票（課題・KPI / 語彙 / アクター / 未着手ゴール）
+ ├── goals/
+ │    └── GOAL-01-<slug>/GOAL.md                                    # ゴール（アクターの言葉で 1 文）
+ │         └── UC-012-<slug>/                                       # ← 縦スライスの単位。`ls` がスコープ
+ │              ├── UC.md          # 主シナリオ・状態×イベント表（空セル禁止。セル → REQ）・例外4分類・phase: 工程
+ │              ├── REQ-045.md …   # EARS 1 文 + 検証方針（分割クラス #name ＝ テストの下限と上限）
+ │              └── contract.yaml  # 境界契約（HTTP / SDK / local-store / deeplink / push / device）
+ ├── rules/BR-003.md …             # 複数 UC が参照する業務規則（存在と意図。値は R-102 で機械可読側へ）
+ ├── nfr/NFR-001.md …              # 閾値＋測定方法
+ ├── adr/ADR-0001-<slug>.md …      # 決定記録（却下案つき。書き換えず supersede）
+ ├── verification/GLOBAL.md        # 全体で検証しない範囲
+ └── _shared/components.yaml       # 契約の共有語彙（authSchemes / errorCodes / schemas）
+traceconfig.json                   # trace-check の設定（ホスト直下）
+```
+
+- **人間ゲートの成果物**（vision / glossary / actors / GOAL / UC / REQ / BR / NFR）は `draft → active`（承認）`→ withdrawn`、**機械ループの成果物**（contract）は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、台帳ファイルは持たない（`trace-check --index` が生成）。
+- **テストは `@covers REQ-045#class`、実装は `@implements REQ-045 / BR-003 / UC-012`** で上流を指す。`trace-check` が「宣言した全クラスにテストがあるか（C10）」「方針にないテストが無いか（C11）」「孤児参照・死んだ規則・配置ずれ・採番衝突が無いか」を機械判定し、既存プロジェクトは baseline ラチェットで漸進導入する。
+- 規約の正文（R-101 単一親制約 … R-1206）は `rules/develop/docs.md` が持ち、`docs/**` を触る producer にだけ paths ゲートで届く。書式はテンプレート、craft は各 agent body（三者を複製しない）。
+
 
 ## 🚀 使い方
 
@@ -240,6 +271,7 @@ harness は**汎用ルールと検証ツールだけ**を持ち、案件固有�
 | **platform / framework**（例: これは `native/expo`） | orchestrator が規約葉の解決を省略できる（develop skill §6-A） |
 | **検証コマンド**（型検査 / lint / テストの実行コマンド） | 実装体が返す直前にこれを全部通す。**宣言が無ければ `package.json` の scripts 等から特定を試み、通せなかったものを報告に載せる**（捏造はしない） |
 | **住所の取り決め**（コンポーネントの置き場、切り出したモジュールの置き場など） | 規約葉が「harness では固定しない」としている項目。test-designer と実装体で解釈が割れると赤緑ループが噛み合わない |
+| **`traceconfig.json`**（ホスト直下） | trace-check の走査対象（`source` / `tests` / `layering` / `contract`）と ID の桁数。orchestrator が初回にテンプレートから seed し、以後はホストが保守する（`.trace-baseline.json` は既存違反の台帳で、単調減少させる） |
 
 > **機械チェックの「設置」は各プロジェクトの責務**という方針は一貫しています（§ 上の 💡 参照）。harness 側は「何を通すべきか」を agent body と規約葉に持ち、**何をどう叩くかはプロジェクトが宣言する**という分担です。
 

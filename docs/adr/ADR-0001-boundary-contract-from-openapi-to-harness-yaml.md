@@ -1,7 +1,11 @@
-# ADR-0001: 機能の境界契約を OpenAPI から harness 独自 YAML へ移す
+---
+id: ADR-0001
+title: 機能の境界契約を OpenAPI から harness 独自 YAML へ移す
+status: accepted
+date: 2026-08-23
+---
 
-- **Date**: 2026-08-23
-- **Status**: Accepted
+# ADR-0001 機能の境界契約を OpenAPI から harness 独自 YAML へ移す
 
 ## Context
 
@@ -11,14 +15,6 @@
 2. **サーバ往復のない機能で手詰まりになる。** develop skill §2 の start gate は `api-contract.yaml` が `fixed` であることを「サイズや理由による免除なし」で要求する。一方 contract-author は DB 設計が渡されなければ書き始めない。ローカル永続だけの機能（設定の保存、オフライン閲覧、カメラ撮影）はゲートに契約を要求されながら producer が書けずに止まる。
 3. **native の境界が HTTP ではない。** deeplink / universal link、push 通知ペイロード、OS 権限ゲート、ローカル永続モデルは SSOT の GWT には現れるのに、「境界の形」を持つ成果物に居場所がない。結果として `spec.md` に溢れるか、無記載になる。
 4. **他社 API を使う場合に契約の向きが逆転する。** Firebase / Supabase / 既存の他社 API では、契約は我々が決めるものではなく写し取るものであり、対応する DB 設計も存在しない。contract-author の「settle する専門家」という規定と噛み合わない。
-
-検討して退けた選択肢は以下。
-
-- **OpenAPI を維持し `paths:` に疑似パスを並べる**（`x-transport` で種別を示す）。変更量は最小で spec-lint・gate-hook・docs-migrate・19 ファイルの参照が無傷。しかし HTTP メソッドとステータスコードを意味なく借りることになり、ローカル永続の操作が `post: /settings/appearance` で `200` を返す、という嘘が契約に常駐する。契約は下流の全実装が唯一よりどころにする成果物であり、そこに嘘を置くのは代償が大きすぎる。
-- **TypeSpec**。transport 非依存の IDL を SSOT にし OpenAPI / JSON Schema / Protobuf へ射影する仕組みで、今回の問題への直球。コンパイラが強い機械オラクルにもなる。退けた理由は、node ツールチェーン依存が SwiftUI プロジェクトに異物であること、契約ファイルが生成物になり MIS のペア構造（`spec.md` と契約が並ぶ）が崩れること。
-- **Protobuf / gRPC IDL**。`rpc` は transport 非依存で概念的には近い。しかし `minLength` / `enum` / `format` などの制約表現が弱く、examples が IDL に入らない。契約から「制約と実値」が落ちる。
-- **JSON Schema 単体**。完全に transport 中立だが、呼び出し口の同一性と誤り集合を表現できず、その上にミニ OpenAPI を再発明することになる。
-- **AsyncAPI**。push 通知には合うが request / response に弱い。置き換えではなく 2 つ目の形式が増えるだけになる。
 
 ## Decision
 
@@ -51,3 +47,11 @@
 - **LLM の既知フォーマットではない。** contract-author は事前学習で慣れた形式を書けなくなるため、テンプレートのガイダンスコメントと機械検査への依存度が上がる。テンプレートが痩せると品質が直接落ちる。
 - **破壊的変更。** 既存ホストは `/docs-migrate` を通すまで spec-lint が通らない。`v*` タグの注釈に移行手順を書き、移行しないホストは旧タグに留まる運用になる。
 - `transport` が閉じた enum であるため、将来の未知の境界（Widget、バックグラウンドタスク、Watch 連携など）が出たときは harness 側の enum 追加が必要になる。開いた文字列にすればホスト側で伸ばせたが、それはチェッカーが transport の妥当性を検証できなくなることと引き換えであり、機械検査を優先した。
+
+## 却下した選択肢
+
+- **OpenAPI を維持し `paths:` に疑似パスを並べる**（`x-transport` で種別を示す）。変更量は最小で spec-lint・gate-hook・docs-migrate・19 ファイルの参照が無傷。しかし HTTP メソッドとステータスコードを意味なく借りることになり、ローカル永続の操作が `post: /settings/appearance` で `200` を返す、という嘘が契約に常駐する。契約は下流の全実装が唯一よりどころにする成果物であり、そこに嘘を置くのは代償が大きすぎる。
+- **TypeSpec**。transport 非依存の IDL を SSOT にし OpenAPI / JSON Schema / Protobuf へ射影する仕組みで、今回の問題への直球。コンパイラが強い機械オラクルにもなる。退けた理由は、node ツールチェーン依存が SwiftUI プロジェクトに異物であること、契約ファイルが生成物になり MIS のペア構造（`spec.md` と契約が並ぶ）が崩れること。
+- **Protobuf / gRPC IDL**。`rpc` は transport 非依存で概念的には近い。しかし `minLength` / `enum` / `format` などの制約表現が弱く、examples が IDL に入らない。契約から「制約と実値」が落ちる。
+- **JSON Schema 単体**。完全に transport 中立だが、呼び出し口の同一性と誤り集合を表現できず、その上にミニ OpenAPI を再発明することになる。
+- **AsyncAPI**。push 通知には合うが request / response に弱い。置き換えではなく 2 つ目の形式が増えるだけになる。

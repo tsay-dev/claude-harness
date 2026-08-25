@@ -299,6 +299,9 @@ do_install()
   log "      未設定でも develop は成立するが、着手ゲートは AI の自己申告だけになる。"
   log "      設置手順: .claude/tools/gate-hook/README.md 「設置」"
   log "      要点: .claude/settings.local.json に PreToolUse フックを追記し、--code に実装コードの glob を渡す。"
+  log ""
+  log "docs は SDD/SSOT 構成（docs/goals/GOAL-nn/UC-nnn/ …）。/develop の初回に traceconfig.json を seed し、"
+  log "      spec-lint（書式）と trace-check（トレーサビリティ）を producer と CI が回す。既存 docs は /docs-migrate で移行。"
   if [[ "${MODE}" == "submodule" ]]; then
     log "      commit the placement, then pull updates later with: ./init.sh update ${TARGET_DIR}"
   fi

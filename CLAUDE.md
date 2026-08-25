@@ -5,13 +5,13 @@ What you touch here is not an application's business code but **the wiring (`.cl
 
 The full text of the philosophy, the directory map, and the setup procedure is in [`README.md`](./README.md). This file carries **only the working guidance for modifying and extending the harness**.
 
-> **Language policy.** Everything under `.claude/` (skills, agents, rules, tool READMEs, and the guidance comments inside templates) is written **in English**, for token density. That is a property of the prompt, not of the work: **conversation with the user is in Japanese**, and **so are the deliverables** — the docs under `docs/specs/`, ADRs, commit messages, and in-code comments. The templates in `.claude/templates/develop/` therefore keep Japanese headings and frontmatter keys, and `README.md` stays in Japanese. When you add or edit anything here, follow that split.
+> **Language policy.** Everything under `.claude/` (skills, agents, rules, tool READMEs, and the guidance comments inside templates) is written **in English**, for token density. That is a property of the prompt, not of the work: **conversation with the user is in Japanese**, and **so are the deliverables** — the docs under `docs/` (vision, UC, REQ, BR …), ADRs, commit messages, and in-code comments. The templates in `.claude/templates/develop/` therefore keep Japanese headings and frontmatter keys, and `README.md` stays in Japanese. When you add or edit anything here, follow that split.
 
 ---
 
 ## 0. What you must never do in this repository
 
-- **Never break zero-residency.** Never revive an `index.md` or a catalog table of contents. Never add automatic injection to `settings.json` (currently `{}`).
+- **Never break zero-residency.** Never revive an `index.md` or a catalog table of contents — and never commit a docs index or ledger either (`trace-check --index` generates it on demand). Never add automatic injection to `settings.json` (currently `{}`).
 - **Never write project-specific deviations here.** The shared harness holds only what is generic. Facts about a particular engagement go in the host project's `CLAUDE.md`.
 - **Never duplicate the same knowledge.** A format has exactly one SSOT (a rules leaf, a template under `templates/`, or the agent body being generated). Never copy craft or format into a skill. The format of a docs artifact is authoritative in the template, and spec-lint derives its required items from the template (never restate the format on the lint side).
 - **Never hand-edit `.cursor/`.** The Cursor projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh cursor` (or `.claude/tools/cursor-sync/sync.sh`).
@@ -55,7 +55,7 @@ The full text of the philosophy, the directory map, and the setup procedure is i
 ### 3.1 Adding a leaf (rules)
 
 1. Decide the level: `rules/<scene>/<platform>/<framework>/<concern>.md` (e.g. `develop/web/crow/common/coding.md`). If a framework splits into layers (`common` / `frontend` / `backend`), you may interpose that one level (deeper is more specific). **A layer-side leaf holds only its delta on the common side and never transcribes the common rules.**
-   In a scene with platform/framework levels (`develop`, and so on), **only a concern that binds every platform and every framework equally may go directly under the scene (`rules/<scene>/<concern>.md`)** (in-code comment rules, for example). A scene with no platform level (`translate-manga-ko-ja`, and so on) has its leaves directly there. A leaf at this position is enumerated unconditionally by develop skill §6-A, regardless of framework detection, so **a gap in `paths:` coverage means that leaf alone stops being delivered** — update the coverage when you add a framework. Nothing else goes directly under the scene.
+   In a scene with platform/framework levels (`develop`, and so on), **only a concern that binds every platform and every framework equally may go directly under the scene (`rules/<scene>/<concern>.md`)** (the in-code comment rules `comments.md` and the SDD docs conventions `docs.md`, for example). A scene with no platform level (`translate-manga-ko-ja`, and so on) has its leaves directly there. A leaf at this position is enumerated unconditionally by develop skill §6-A, regardless of framework detection, so **a gap in `paths:` coverage means that leaf alone stops being delivered** — update the coverage when you add a framework. Nothing else goes directly under the scene.
 
 **A file name is nothing but a signpost for humans. What decides the destination is `paths:`.**
 How things are split and what they are named is the rules side's freedom, and the develop skill does not know what a file name means (§1, one-way references).
@@ -119,7 +119,7 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 
 | Zone | Who | Claude Code `model:` | Cursor (at Task launch) | Why |
 | --- | --- | --- | --- | --- |
-| The judgment zone (machines cannot refute it) | ssot-definer / db-designer / contract-author / test-designer / adr-writer / slice-reviewer, and every oracle, attacker, and judge | `opus` | the orchestrator picks a top-tier model to match the task | Everything downstream rests on these artifacts. Degradation here produces "correctly wrong" implementations |
+| The judgment zone (machines cannot refute it) | domain-definer / usecase-definer / requirement-definer / db-designer / contract-author / test-designer / adr-writer / slice-reviewer, and every oracle, attacker, and judge | `opus` | the orchestrator picks a top-tier model to match the task | Everything downstream rests on these artifacts. Degradation here produces "correctly wrong" implementations |
 | The deterministic zone (a machine oracle exists) | the 3 implementation producers / skeleton-runner / committer | `inherit` | lighter, or `inherit`, is fine | Tests and builds decide pass/fail, so the model makes little difference to final quality |
 
 > **Never hardcode a specific model slug (`sonnet`, or a Cursor-specific name) into the harness.** The shared harness would then constrain the host's budget and model catalog (§0). In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default.
@@ -137,7 +137,7 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
    # or
    .claude/tools/cursor-sync/sync.sh .claude .cursor
    ```
-5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/NNNN-YYYY-MM-DD-title.md` (the format is authoritative in `agents/develop/adr-writer.md`). This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
+5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository). This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
 6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
 
 ---
@@ -147,12 +147,13 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | What changed | The minimum check |
 | --- | --- |
 | A rules leaf | Is `paths:` present? Is the glob valid? Is it one concern? |
-| A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? |
+| A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
 | An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no hardcoded `sonnet`)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
-| templates | One artifact, one template? Are the placeholders unified as `F-000` / `YYYY-MM-DD` / `<...>`? Is spec-lint's derivation (required sections, required `x-` keys) unbroken? |
-| spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? For spec.md the format is derived from the template and never restated on the lint side. **For the contract, the split is deliberate**: the required `x-` keys are still derived from `templates/develop/contract.yaml`, but the closed vocabularies (`transport` / `direction` values) live in the lint, because only executable code can enforce them — the template's comment documents them and is not a second authority |
-| gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs and `.claude` unblocked? Does the block reason point at develop skill §2's return point? |
+| templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |
+| spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? Required keys and sections are derived from the templates and never restated on the lint side. **The closed vocabularies are the deliberate exception**: `status` / `phase` / `pattern` / `transport` / `direction` live in the lint, because only executable code can enforce them — a template's comment documents them and is not a second authority. Format and lifecycle only — traceability is trace-check's |
+| trace-check | Does it stay traceability-only (C1–C12: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter, dead rules, numbering) and never re-check format? Does `--only` let a producer self-check its own concern? Does the baseline ratchet stay monotone (`--update-baseline` only shrinks)? Is `--next` the only numbering path agents use? |
+| gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs, `.claude`, and `traceconfig.json` unblocked? Does it read the gate state from `UC.md`'s `phase:` (no ledger file)? Does the block reason point at develop skill §2's return point? |
 | init.sh | Do the help for install / update / cursor and the README agree? |
 
 Application-level business tests are not this repository's primary target. **Consistency of the wiring, zero residency, and the alignment of the three trees** are the axes of quality.
