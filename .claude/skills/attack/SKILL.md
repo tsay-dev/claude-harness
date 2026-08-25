@@ -40,7 +40,7 @@ settle scope and budget
 
 ### Task input (always pass)
 
-- The attack target (for a slice: the `spec.md` and contract paths; for the whole system: the system SSOT / ledger paths)
+- The attack target (for a slice: the UC directory `docs/goals/GOAL-nn-<slug>/UC-nnn-<slug>/` — `UC.md`, `REQ-*.md`, `contract.yaml` — plus the BRs it names; for the whole system: `docs/00-vision.md`, `docs/nfr/`, `docs/rules/`, and `trace-check --index` for the map)
 - Hints for the production-equivalent runtime (paths or commands, if the project's startup method is known)
 - **The attack budget**
 - On a re-attack round: the previous defect/violation list plus the change scope
