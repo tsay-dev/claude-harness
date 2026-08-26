@@ -15,3 +15,6 @@ Icon?
 
 # Cursor 射影（生成物。取り込み先/検証用に ./init.sh cursor で再生成する）
 .cursor/
+
+# Grok Build 射影（生成物。./init.sh grok で再生成する。config.toml 等は対象外）
+.grok/agents/

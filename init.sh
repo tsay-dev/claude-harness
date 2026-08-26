@@ -3,9 +3,10 @@
 # init.sh — claude-harness を対象プロジェクトへ導入 / 更新する
 #
 # 使い方:
-#   導入:  ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor]
+#   導入:  ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok]
 #   更新:  ./init.sh update [/path/to/your-project] [--tag vX.Y.Z] [--no-commit]
-#   Cursor: ./init.sh cursor [/path/to/your-project]   # .claude/rules → .cursor/rules を再生成
+#   Cursor: ./init.sh cursor [/path/to/your-project]   # .claude の3木 → .cursor/ を再生成
+#   Grok:   ./init.sh grok [/path/to/your-project]     # .claude/agents → .grok/agents を再生成
 #
 # install が行うこと:
 #   1. 対象プロジェクトに .claude/（rules・skills）を配置する
@@ -39,7 +40,12 @@
 #   対象の .claude/rules を Cursor の Auto Attached ルール（.cursor/rules/**/*.mdc）へ
 #   機械変換する。paths ゲート → globs ゲートの純粋な射影で、.claude が SSOT のまま。
 #   install に --cursor を付けると配置直後に自動生成する。update 後は本アクションで再生成する。
-#   ※ skill/agent（subagent 起動）は Cursor に相当機構が無いため射影しない。
+#
+# grok が行うこと（Grok Build 併用者向けの射影）:
+#   対象の .claude/agents を Grok Build が読む .grok/agents/<name>.md へ flatten する。
+#   Grok は agents 直下の *.md しか見ない（ネストした agents/develop/foo.md は乗らない）。
+#   skills は .claude/skills を直接読むので写さない。rules は全文ロードされるので写さない。
+#   install に --grok を付けると配置直後に自動生成する。update 後は本アクションで再生成する。
 
 set -euo pipefail
 
@@ -51,6 +57,7 @@ MODE="submodule"
 FORCE="false"
 NO_COMMIT="false"
 CURSOR="false"
+GROK="false"
 TARGET_DIR=""
 TAG=""
 
@@ -62,20 +69,23 @@ usage()
 {
   cat >&2 <<'EOF'
 usage:
-  install: ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor]
+  install: ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok]
   update:  ./init.sh update [/path/to/your-project] [--tag vX.Y.Z] [--no-commit]
   cursor:  ./init.sh cursor [/path/to/your-project]
+  grok:    ./init.sh grok [/path/to/your-project]
 
   --mode <m>    配置方式（既定: submodule）。submodule / symlink / copy。install のみ。
   --tag <t>     固定するリリースタグ（既定: 最新の v* タグ）。submodule 配置のみ。
   --force       対象の既存 .claude/ を置き換える（既定は中断）。install のみ。
-  --cursor      配置後に .cursor/rules（Cursor 用 Auto Attached ルール）も生成。install のみ。
+  --cursor      配置後に .cursor（Cursor 用射影）も生成。install のみ。
+  --grok        配置後に .grok/agents（Grok Build 用射影）も生成。install のみ。
   --no-commit   更新のみ行いコミットしない。update のみ。
   -h, --help    このヘルプを表示。
 
 注: update は submodule 配置に対してのみ有効。
     harness にはリリースタグ（例: v0.1.0）が必要。
-    cursor は対象の .claude/rules を .cursor/rules へ射影する（対象省略時はカレント repo）。
+    cursor は対象の .claude を .cursor へ射影する（対象省略時はカレント repo）。
+    grok は対象の .claude/agents を .grok/agents へ flatten する（対象省略時はカレント repo）。
 EOF
 }
 
@@ -95,7 +105,7 @@ checkout_tag()
 # --- アクション判定（先頭の位置引数が install/update ならそれを採用） ---
 if [[ $# -gt 0 ]]; then
   case "$1" in
-    install|update|cursor) ACTION="$1"; shift ;;
+    install|update|cursor|grok) ACTION="$1"; shift ;;
   esac
 fi
 
@@ -108,6 +118,7 @@ while [[ $# -gt 0 ]]; do
     --tag=*)     TAG="${1#*=}"; shift ;;
     --force)     FORCE="true"; shift ;;
     --cursor)    CURSOR="true"; shift ;;
+    --grok)      GROK="true"; shift ;;
     --no-commit) NO_COMMIT="true"; shift ;;
     -h|--help)   usage; exit 0 ;;
     --) shift; break ;;
@@ -198,6 +209,28 @@ do_cursor()
   log "note: rules=globs ゲート, skills=/name 入口, agents=独立コンテキスト subagent。"
 }
 
+# =============================== grok =================================
+# 対象の .claude/agents を Grok Build 用 .grok/agents/<name>.md へ flatten する。
+do_grok()
+{
+  if [[ -z "${TARGET_DIR}" ]]; then
+    TARGET_DIR="$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")"
+  fi
+  [[ -d "${TARGET_DIR}" ]] || die "target directory not found: ${TARGET_DIR}"
+  TARGET_DIR="$(cd "${TARGET_DIR}" && pwd)"
+
+  local claude="${TARGET_DIR}/.claude"
+  [[ -d "${claude}" ]] \
+    || die "no .claude at target; install the harness first: ${claude}"
+
+  local gen="${SRC_DIR}/.claude/tools/grok-sync/sync.sh"
+  [[ -x "${gen}" ]] || gen="bash ${SRC_DIR}/.claude/tools/grok-sync/sync.sh"
+
+  ${gen} "${claude}" "${TARGET_DIR}/.grok"
+  log "grok projection written: ${TARGET_DIR}/.grok/agents (flattened by name:)"
+  log "note: skills は .claude/skills を直接読む。rules は射影しない。"
+}
+
 # =============================== install ==============================
 do_install()
 {
@@ -286,9 +319,12 @@ do_install()
       ;;
   esac
 
-  # --cursor 指定時は配置直後に .cursor/rules も生成する
+  # --cursor / --grok 指定時は配置直後に各ランタイムの射影を生成する
   if [[ "${CURSOR}" == "true" ]]; then
     do_cursor
+  fi
+  if [[ "${GROK}" == "true" ]]; then
+    do_grok
   fi
 
   log "done."
@@ -311,4 +347,5 @@ case "${ACTION}" in
   update)  do_update ;;
   install) do_install ;;
   cursor)  do_cursor ;;
+  grok)    do_grok ;;
 esac

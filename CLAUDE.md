@@ -15,6 +15,7 @@ The full text of the philosophy, the directory map, and the setup procedure is i
 - **Never write project-specific deviations here.** The shared harness holds only what is generic. Facts about a particular engagement go in the host project's `CLAUDE.md`.
 - **Never duplicate the same knowledge.** A format has exactly one SSOT (a rules leaf, a template under `templates/`, or the agent body being generated). Never copy craft or format into a skill. The format of a docs artifact is authoritative in the template, and spec-lint derives its required items from the template (never restate the format on the lint side).
 - **Never hand-edit `.cursor/`.** The Cursor projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh cursor` (or `.claude/tools/cursor-sync/sync.sh`).
+- **Never hand-edit `.grok/agents/`.** The Grok Build projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh grok` (or `.claude/tools/grok-sync/sync.sh`).
 
 ---
 
@@ -44,7 +45,7 @@ The full text of the philosophy, the directory map, and the setup procedure is i
 | A specialist subagent's persona and craft (the judgment rules for how to write) | `agents/<key>/<name>.md` | only when the orchestrator launches it as a Task |
 | The scaffold for a docs artifact (the format's SSOT; spec-lint derives required items from it) | `templates/<key>/<name>.(md\|yaml)` | when a producer Reads it as a scaffold |
 | An executable asset (lint, projection scripts) | `tools/<name>/` | when a producer / init invokes it directly |
-| Installation, updating, the Cursor projection | `init.sh` at the root | when a human runs it explicitly |
+| The installation, updating, the Cursor / Grok projection | `init.sh` at the root | when a human runs it explicitly |
 
 **The skill hierarchy constraint:** Claude Code only explores the single level `skills/<name>/SKILL.md`. Never nest them.
 
@@ -131,11 +132,13 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 1. **Identify the SSOT for what you are changing** (a rules leaf / a skill / an agent body / tools / `init.sh` / `README.md`).
 2. **Check no duplication arises** (is the same format scattered across a skill, an agent, and rules?).
 3. After the change, visually confirm the related README sections, comments, and reference paths from other agents are not broken.
-4. If you touched the Cursor integration, or changed rules / skills / agents, regenerate the projection for the host or for verification:
+4. If you touched the Cursor or Grok integration, or changed rules / skills / agents, regenerate the projection for the host or for verification:
    ```bash
    ./init.sh cursor .
+   ./init.sh grok .
    # or
    .claude/tools/cursor-sync/sync.sh .claude .cursor
+   .claude/tools/grok-sync/sync.sh .claude .grok
    ```
 5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository). This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
 6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
@@ -150,11 +153,12 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
 | An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no hardcoded `sonnet`)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
+| grok-sync | flatten `agents/**/*.md` → `.grok/agents/<name>.md` by frontmatter `name:`, drop `model:`, the GENERATED marker; do not copy skills or rules |
 | templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |
 | spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? Required keys and sections are derived from the templates and never restated on the lint side. **The closed vocabularies are the deliberate exception**: `status` / `phase` / `pattern` / `transport` / `direction` live in the lint, because only executable code can enforce them — a template's comment documents them and is not a second authority. Format and lifecycle only — traceability is trace-check's. Does the baseline ratchet keep trace-check's semantics (only new errors fail; `--update-baseline` records the whole present state; `gate` never consults it)? Does `convert` preserve the shape and leave every judgment as a `# convert:` note instead of deciding? |
 | trace-check | Does it stay traceability-only (C1–C13: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter, dead rules, numbering) and never re-check format? Does `--only` let a producer self-check its own concern? Does the baseline ratchet stay monotone (`--update-baseline` only shrinks)? Is `--next` the only numbering path agents use? |
 | gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs, `.claude`, and `traceconfig.json` unblocked? Does it read the gate state from `UC.md`'s `phase:` (no ledger file)? Does the block reason point at develop skill §2's return point? |
-| init.sh | Do the help for install / update / cursor and the README agree? |
+| init.sh | Do the help for install / update / cursor / grok and the README agree? |
 
 Application-level business tests are not this repository's primary target. **Consistency of the wiring, zero residency, and the alignment of the three trees** are the axes of quality.
 
@@ -168,5 +172,5 @@ Application-level business tests are not this repository's primary target. **Con
    - Changing a procedure → the relevant `skills/<key>/SKILL.md`
    - Changing craft or a format → the relevant `agents/<key>/*.md`
    - Changing a framework's rules → the relevant `rules/.../*.md`
-   - Changing the projection → `.claude/tools/cursor-sync/sync.sh`
+   - Changing the projection → `.claude/tools/cursor-sync/sync.sh` / `.claude/tools/grok-sync/sync.sh`
    - Changing installation → `init.sh`

@@ -266,6 +266,8 @@ At every launch, **launch simultaneously if all 4 conditions below hold** (seria
 
 **In Cursor, choose the model per Task at each launch.** A projected agent's `model:` is normalized to `inherit`, so do not leave it entirely to the parent's default. For judgments that machines cannot refute and for artifacts everything downstream rests on (the SSOT / DB / contract / test design / ADR / oracle, reviewer, attacker), pick whichever offered candidate degrades least in judgment quality. The deterministic zone that has a machine oracle (the 3 implementers / skeleton / committer) can be lighter, or `inherit`. Do not hardcode a specific model slug into the harness (choose from the candidates the Task's model argument offers). When the human names a model, follow it.
 
+**In Grok Build, launch specialists with the subagent spawn tool (`task` / `spawn_subagent`), not the Cursor/Claude Task tool.** After `./init.sh grok`, each persona is flattened to `.grok/agents/<name>.md`; `subagent_type` is that frontmatter `name:` (for example `domain-definer`, `translate-manga-ko-ja-maker`). The projection drops `model:`, so the child inherits the parent — Grok's spawn API has no per-launch model argument. Do not pin a slug in the harness. The Claude Code tool names in agent frontmatter are ignored; the read-only discipline is in each agent body.
+
 ### Implementing human gates
 
 **Subagents cannot talk to the user directly.** A 🙋 agent never self-approves: it returns a draft plus the points the human must settle, and stops. The confirmation ritual (AskUserQuestion / plan mode) and the status transition (`active` / `frozen` / `living`, settled UI or DB) are performed by the orchestrator. Never embed a human gate inside a subagent.

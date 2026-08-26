@@ -138,7 +138,7 @@ Excuses like "it's a small CRUD" are rejected. If all you want is lower cost, yo
 
 ## 7. Agent wiring
 
-The SSOT for their personas is `.claude/agents/develop/<name>.md`. Do not duplicate mission text here. Pass the shared-vocabulary paths (the glossary, the BRs, `docs/_shared/components.yaml`, etc.) to every Task. Passing artifacts by path (never pasting bodies into a Task) and choosing the model at Task launch in Cursor both follow mainline develop skill §5.
+The SSOT for their personas is `.claude/agents/develop/<name>.md`. Do not duplicate mission text here. Pass the shared-vocabulary paths (the glossary, the BRs, `docs/_shared/components.yaml`, etc.) to every Task. Passing artifacts by path (never pasting bodies into a Task), choosing the model at Task launch in Cursor, and spawning via `task` / `spawn_subagent` in Grok Build all follow mainline develop skill §5.
 
 **Concurrency is the default, serialization the exception**: always launch Tasks with no dependency simultaneously. Whether they can run concurrently, how to issue them, and how to handle exclusive resources are authoritative in mainline develop skill §4 (**when a producer reports that it skipped execution for exclusivity, close the concurrent section, have one agent run the skipped UC IDs plus blast radius, settle red/green of that selection, and only then move to verification**). When to run a selection vs the whole default suite is the same section (test-run granularity).
 
