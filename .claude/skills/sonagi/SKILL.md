@@ -12,8 +12,10 @@ description: 企画から動画の制作定義一式（台本・素材プロン�
 
 ## 🔒 このスキルが踏み越えない線
 
-- **外部サービスを叩かない。** 画像生成・TTS・レンダリングを実行しない。出すのは**プロンプトと定義だけ**。
-- **事実を調べない。** 台本に載る事実は `brief.yaml` に人間が書いたものだけ。埋まらない箇所は `⚠要確認` で人間へ返す。
+- **画像生成・TTS・レンダリングを実行しない。** 出すのは**プロンプトと定義だけ**。
+- **調べるのは researcher 1体だけ。** 台本より下流の工程は誰も調べない。事実は `research.md` か
+  `brief.yaml` の `points:` にあるものだけで、埋まらない箇所は `⚠要確認` で人間へ返す。
+  調査を回さない回もある（事実が中身でないテーマ）。
 - **`channel/` を書き換えない。** 更新は `review.md` の差分提案として出し、承認・反映は人間。
 - **オーケストレータは生成しない。** 台本も素材も公開情報もサブエージェントが書く。あなたはスクリプトを叩き、分岐する。
 
@@ -33,6 +35,8 @@ description: 企画から動画の制作定義一式（台本・素材プロン�
 | 役割 | 実体 | 担当 |
 | --- | --- | --- |
 | **orchestrator（中立）** | このスキルを起動したあなた（インライン） | 入力確定・起動・スクリプト実行・分岐・引き渡し。**自分では書かない・判定しない** |
+| **researcher** | [`agents/sonagi/researcher.md`](../../agents/sonagi/researcher.md) | 出典付きの事実収集。**外部を調べる唯一の主体** |
+| **fact-checker** | [`agents/sonagi/fact-checker.md`](../../agents/sonagi/fact-checker.md) | 出典を開き直す反証。**事実を集めていない別コンテキスト必須** |
 | **script-writer** | [`agents/sonagi/script-writer.md`](../../agents/sonagi/script-writer.md) | L0 台本＋尺予算の配分 |
 | **asset-generator** | [`agents/sonagi/asset-generator.md`](../../agents/sonagi/asset-generator.md) | L1 素材。**シーン単位で並列**、1体1ファイル |
 | **publisher** | [`agents/sonagi/publisher.md`](../../agents/sonagi/publisher.md) | L4 公開パッケージ＋サムネ定義 |
@@ -46,13 +50,23 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
 
 1. **入力確定（インライン）。** チャンネルのルート・対象動画・`brief.yaml` を固める。不明点は1度だけ人間へ（🙋）。
 
-2. **script-writer を Task 起動。** `brief.yaml` / `channel/identity.md` / `channel/voice.md` のパスを渡す。
+2. **調査（動画の中身が事実であるときだけ）。** `research.md` が既に在るなら飛ばす。
+   1. **researcher を Task 起動。** テーマを渡し、出典付きの `research.md` を返させる。
+   2. **fact-checker を Task 起動（別コンテキスト必須）。** 渡すのは `research.md` / `brief.yaml` /
+      `channel/identity.md` の**パスだけ**。出典を開き直した結果 `research-review.md` が返る。
+   **落とされた事実・格下げされた確度は、この後の全工程で効く。** 台本の前に検証を置くのは、
+   落ちた事実の上に台本を建てさせないためである。
+
+3. **script-writer を Task 起動。** `brief.yaml` / `channel/identity.md` / `channel/voice.md` と、
+   在れば `research.md` / `research-review.md` のパスを渡す。
    `script.md` が返る。**`script.md` が既に在るなら、この段は飛ばす**（人間が持ち込んだ台本をそのまま使う）。
 
-3. **🙋 人間ゲート（唯一）。** `script.md` と `⚠要確認` を提示し、**承認を待つ**。
+4. **🙋 人間ゲート（唯一）。** `script.md` と `⚠要確認` を提示し、**承認を待つ**。
+   調査を回したなら `research.md` と `research-review.md` も**同じゲートで一緒に見せる**
+   （事実の採否と台本の可否は、切り離して判断できない）。
    台本は全素材の唯一の源泉であり、ここが外れていると L1〜L4 が丸ごと無駄になる。**このゲートを飛ばさない。**
 
-4. **asset-generator ×N ＋ publisher を同時に Task 起動（並列）。**
+5. **asset-generator ×N ＋ publisher を同時に Task 起動（並列）。**
    - `asset-generator` は**素材ファイルが無いシーンの数だけ**起動する。**既に在るシーンは起動しない**
      （人間が手で直した内容を巻き戻さないため）。作り直したいシーンは、人間がそのファイルを消してから再実行する。
    - `assets/<scene_id>.redo.md` が在れば、その中身を**そのシーンの担当に渡す**（捨てられた理由）。
@@ -60,16 +74,16 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
    - `publisher` は `script.md` にしか依存しないので、素材生成と**同時に**回す。
    - 各体には**自分の担当分だけ**を渡す（`asset-generator` には担当 `scene_id` を1つ）。
 
-5. **judge を Task 起動（別コンテキスト必須）。** 渡すのは `brief.yaml` / `script.md` / `assets/` / `channel/` の**パスだけ**
+6. **judge を Task 起動（別コンテキスト必須）。** 渡すのは `brief.yaml` / `script.md` / `assets/` / `channel/` の**パスだけ**
    （producer の思考過程は渡さない）。`review.md` が返る。
    `brief.yaml` を渡すのは、**台本の主張が企画の `points:` から導けるか**を突き合わせられる主体が judge だけだからである。
 
-6. **分岐。**
+7. **分岐。**
    - **差し戻し（objective）** … 該当 `scene_id` の素材ファイルを消し、**そのシーンだけ** `asset-generator` を再起動する。
      **差し戻しは1巡まで。** 2巡目も割れるなら `⚠` として人間へ回す（判断が割れるものは何度回しても収束しない）。
    - **⚠ 人間判断** … `review.md` に残したまま人間へ委ねる。**黙って1つに丸めない。**
 
-7. **組み立てと検算（スクリプト）。**
+8. **組み立てと検算（スクリプト）。**
    ```bash
    python3 .claude/tools/sonagi/sonagi.py build  <videos/<format>/<id>>
    python3 .claude/tools/sonagi/sonagi.py check  <videos/<format>/<id>>
@@ -77,12 +91,14 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
    `build` は ERROR がある間は何も書かない。ERROR が出たら、**その `scene_id` の担当だけ**を再起動して直す。
    検査コードの意味は [`tools/sonagi/README.md`](../../tools/sonagi/README.md)。
 
-8. **引き渡し。** 成果物一覧と、人間の仕事（下記）を明示する。
+9. **引き渡し。** 成果物一覧と、人間の仕事（下記）を明示する。
 
 ## 出力（すべて `videos/<format>/<id>/`）
 
 | ファイル | 内容 | 作る主体 |
 | --- | --- | --- |
+| `research.md` | 出典付きの事実（調査を回したときだけ） | researcher |
+| `research-review.md` | 出典を開き直した検証結果（同上） | fact-checker |
 | `script.md` | L0 台本（シーンID＋尺予算） | script-writer |
 | `assets/SC-nn.json` | L1 素材（1シーン1ファイル） | asset-generator |
 | `assets/THUMB.json` | L1 サムネ定義（時間軸なし） | publisher |
@@ -101,7 +117,8 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
 ## ✅ 着手前チェックリスト
 
 - [ ] チャンネルのルートと対象動画を確定したか（`channel/` が無いならブートストラップ提案で止まったか）
-- [ ] `brief.yaml` の `points:` に、台本に載せてよい事実が入っているか（AI に調べさせていないか）
+- [ ] 事実が中身のテーマなら、調査を回し、**集めた本人でない fact-checker** に出典を開き直させたか
+- [ ] fact-checker が落とした事実・下げた確度が、台本に反映されているか（勢いのために戻していないか）
 - [ ] **台本の人間ゲートを通したか**（承認前に素材生成へ進んでいないか）
 - [ ] 既に在る素材ファイルのシーンを再起動していないか（人間の手直しを巻き戻していないか）
 - [ ] 横断レビューを**素材を書いていない別サブエージェント（judge）**で回したか（自己レビューにしていないか）

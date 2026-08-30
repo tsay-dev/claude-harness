@@ -49,11 +49,14 @@ speech_rate: 6.5        # channel/voice.md 由来。文字/秒
 
 # <仮題>
 
-| scene_id | role | duration_sec | char_budget | narration |
-| --- | --- | --- | --- | --- |
-| SC-01 | hook | 5 | 32 | ナレーション原稿 |
-| SC-02 | setup | 8 | 52 | ... |
+| scene_id | role | duration_sec | char_budget | narration | facts |
+| --- | --- | --- | --- | --- | --- |
+| SC-01 | hook | 5 | 32 | ナレーション原稿 | F-01 |
+| SC-02 | setup | 8 | 52 | ... | |
 ```
+
+`facts` 列は **`research.md` を使ったときだけ**必要になる（調査工程を回さないなら省略してよい）。
+事実を述べているシーンが空欄なら、それは出典の無い断定である。書式は [research-format.md](research-format.md)。
 
 - `scene_id` は `SC-01` から連番。欠番・重複を作らない。
 - `char_budget` = `round(duration_sec * speech_rate)`。**`duration_sec` の合計は frontmatter の `duration_sec` に一致させる。**

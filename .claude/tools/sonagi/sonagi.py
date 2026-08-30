@@ -100,6 +100,7 @@ def parse_script(path, f):
             f.error("C2", "script.md", f"表の列が足りない: {s[:60]}")
             continue
         scene_id, role, dur, budget, narration = cells[0], cells[1], cells[2], cells[3], cells[4]
+        facts = cells[5] if len(cells) > 5 else ""
         try:
             dur_v = float(dur)
         except ValueError:
@@ -111,7 +112,8 @@ def parse_script(path, f):
             f.error("C2", scene_id, f"char_budget が数値でない: {budget!r}")
             budget_v = 0
         rows.append({"scene_id": scene_id, "role": role, "duration_sec": dur_v,
-                     "char_budget": budget_v, "narration": narration})
+                     "char_budget": budget_v, "narration": narration,
+                     "facts": re.findall(r"F-\d+", facts)})
     if not header_seen:
         f.error("C2", "script.md", "`| scene_id | role | duration_sec | char_budget | narration |` の表が無い")
     return {"frontmatter": fm, "rows": rows}
@@ -155,6 +157,32 @@ def check_script(script, f):
             if not (lo <= n <= hi):
                 f.error("C5", r["scene_id"],
                         f"ナレーション {n}文字 が予算 {r['char_budget']}文字 ±{int(NARRATION_TOLERANCE*100)}% を外れる")
+
+
+def check_fact_refs(video_dir, script, f):
+    """台本が参照する F-nnn が research.md に実在するか（C17）。
+
+    参照切れは機械的に決まる。どのシーンが「事実を述べているか」は機械には見えないので、
+    そちらは fact-checker と人間に委ねる。
+    """
+    p = os.path.join(video_dir, "research.md")
+    refs = {r["scene_id"]: r.get("facts") or [] for r in script["rows"]}
+    used = {x for v in refs.values() for x in v}
+    if not os.path.exists(p):
+        if used:
+            f.error("C17", "script.md",
+                    f"research.md が無いのに事実 {sorted(used)} を参照している")
+        return
+    text = open(p, encoding="utf-8").read()
+    defined = set(re.findall(r"^##\s+(F-\d+)\b", text, re.M))
+    for sid, ids in refs.items():
+        for i in ids:
+            if i not in defined:
+                f.error("C17", sid, f"参照している {i} が research.md に無い")
+    unused = defined - used
+    if unused:
+        f.warn("C17", "research.md",
+               f"どのシーンからも参照されていない事実がある: {sorted(unused)}（調べ損か、落とした結果か）")
 
 
 def load_assets(video_dir, script, f):
@@ -518,6 +546,7 @@ def main():
         return report(f, args.json, res or {})
 
     check_script(script, f)
+    check_fact_refs(video_dir, script, f)
     stage = getattr(args, "stage", "all")
     assets, thumb = {}, None
     if args.cmd == "build" or stage in ("assets", "all"):
