@@ -385,6 +385,33 @@ def check_visual_consistency(video_dir, script, assets, thumb, f):
         if bad:
             f.error("C16", "assets/", f"{key} が channel/style.md の正規文字列と違う: {sorted(bad)}")
 
+    # C18 カメラの角度が全部同じになっていないか
+    #   面白さは機械に作れないが、「同じものの繰り返し」は同一性なので撃てる。
+    #   語の重複では拾えない（言い回しは各シーンで違う）。実際に効くのは**画の撮り方**で、
+    #   カメラアングルは実質的に閉じた語彙なので、そこを直接数える。
+    ANGLES = {
+        "俯瞰": ("top-down", "overhead", "from above", "looking down", "high angle",
+                 "bird", "aerial", "elevated"),
+        "水平": ("eye-level", "eye level", "straight-on", "head-on", "front view"),
+        "側面": ("side elevation", "side view", "profile view", "cross-section",
+                 "from water level", "waterline"),
+        "煽り": ("low angle", "from below", "worm"),
+        "寄り": ("extreme close", "macro", "close-up detail"),
+    }
+    fam = {}
+    for sid, a in items.items():
+        c = str((a.get("image") or {}).get("composition", "")).lower()
+        hit = [k for k, ws in ANGLES.items() if any(w in c for w in ws)]
+        if hit:
+            fam.setdefault(hit[0], []).append(sid)
+    named = sum(len(v) for v in fam.values())
+    if named >= 5:
+        top, ids = max(fam.items(), key=lambda kv: len(kv[1]))
+        if len(ids) / named >= 2 / 3:
+            f.warn("C18", "assets/",
+                   f"カメラの角度が「{top}」に偏っている（角度を書いた {named} コマ中 {len(ids)}: "
+                   f"{sorted(ids)}）。正しくても、同じ撮り方が続くと見続ける理由が無くなる")
+
     # C15 シーン境界の transition_out ⇄ 次の transition_in
     ids = [r["scene_id"] for r in script["rows"]]
     for a_id, b_id in zip(ids, ids[1:]):
