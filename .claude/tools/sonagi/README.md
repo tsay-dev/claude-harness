@@ -16,6 +16,10 @@ python3 .claude/tools/sonagi/sonagi.py check <channel>/videos/short/<id>
 # 機械が読む形で
 python3 .claude/tools/sonagi/sonagi.py check <path> --json
 
+# 使う TTS で話速を実測する（channel/voice.md に入れる数値を決める）
+python3 .claude/tools/sonagi/sonagi.py calibrate <path> --audio <音声を置いたディレクトリ>
+python3 .claude/tools/sonagi/sonagi.py calibrate <path> --measure SC-01=5.4 SC-05=8.2
+
 # 自分の担当分だけ（producer の自己検査）
 python3 .claude/tools/sonagi/sonagi.py check <path> --stage script   # C1-C5
 python3 .claude/tools/sonagi/sonagi.py check <path> --stage assets   # + C6-C9,C11,C12
@@ -32,6 +36,20 @@ producer（各 agent）は**自分の成果物を出した直後に自分で `ch
 どこが原因かが導出物側に散らばって追えなくなるため。
 
 ## 検査コード
+
+## `calibrate` — 話速を推測で置かない
+
+尺予算の全計算は `channel/voice.md` の**話速（文字/秒）1つ**に乗っている。
+ここを推測のまま回すと、「60秒」のつもりの動画が実測で何秒になるか誰も知らないまま進む。
+
+`<音声ディレクトリ>/SC-01.mp3` のようにシーンIDで音声を置けば ffprobe が秒数を読み、
+台本のナレーション文字数と突き合わせて実測話速を出す。ffprobe が無い環境では `--measure` で手渡しできる。
+
+**測るのは3件以上**にする。1件だと、その文がたまたま速かっただけかを判別できない。
+変動係数が 10% を超えたら WARN が出る——話速が入力文で揺れる TTS を使っているということで、
+尺の構造保証が弱まる。その場合は TTS 側で話速を固定する運用に倒す。
+
+**TTS を替えたら測り直す。** 話速はその TTS の性質であって、チャンネルの性質ではない。
 
 | コード | 何を見るか |
 | --- | --- |

@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 # --- 閉じた語彙（SSOT: rules/sonagi/schema.md）--------------------------------
@@ -226,6 +227,75 @@ def check_assets(script, assets, f):
             f.warn("C12", sid, "telop と caption が重なっている（同じコマに同じ語が二重に出る）")
 
 
+# --- 話速の較正 ---------------------------------------------------------------
+AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac")
+
+
+def audio_seconds(path):
+    """ffprobe で秒数を読む。無ければ None を返して手入力に落とす。"""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, timeout=30)
+        return float(r.stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def calibrate(video_dir, script, audio_dir, measured, f):
+    """実際に読ませた音声から話速（文字/秒）を出す。
+
+    話速は `channel/voice.md` にあり、尺予算の全計算がこの1つの数値に乗っている。
+    推測のまま回すと、60秒のつもりの動画が実測で何秒になるか誰も知らないまま進む。
+    **使う TTS を決めたら必ず1度測る**。TTS を替えたら測り直す。
+    """
+    rows = {r["scene_id"]: r for r in script["rows"]}
+    samples = []
+    for sid, row in rows.items():
+        sec = measured.get(sid)
+        if sec is None and audio_dir:
+            for ext in AUDIO_EXT:
+                p = os.path.join(audio_dir, sid + ext)
+                if os.path.exists(p):
+                    sec = audio_seconds(p)
+                    if sec is None:
+                        f.warn("CAL", sid, "ffprobe が読めなかった。--measure で秒数を渡す")
+                    break
+        if sec:
+            n = len(row["narration"])
+            samples.append({"scene_id": sid, "chars": n, "seconds": round(sec, 3),
+                            "rate": round(n / sec, 3)})
+    if not samples:
+        f.error("CAL", "calibrate", "測定できた音声が1つも無い（--audio か --measure を渡す）")
+        return None
+
+    rates = [s["rate"] for s in samples]
+    mean = sum(rates) / len(rates)
+    var = sum((r - mean) ** 2 for r in rates) / (len(rates) - 1) if len(rates) > 1 else 0.0
+    sd = var ** 0.5
+    spread = (sd / mean) if mean else 0.0
+
+    declared = script["frontmatter"].get("speech_rate")
+    total_declared = script["frontmatter"].get("duration_sec")
+    # 現在の台本を、実測話速で読んだらどうなるか
+    actual_total = sum(len(r["narration"]) / mean for r in script["rows"])
+
+    if len(samples) < 3:
+        f.warn("CAL", "calibrate", f"測定が {len(samples)} 件しかない。ばらつきを見るには3件以上が要る")
+    if spread > 0.10:
+        f.warn("CAL", "calibrate",
+               f"話速のばらつきが大きい（変動係数 {spread:.1%}）。"
+               "尺の構造保証が弱まるので、TTS 側で話速を固定する運用を検討する")
+    if isinstance(declared, (int, float)) and abs(mean - declared) / declared > 0.05:
+        f.warn("CAL", "calibrate",
+               f"宣言 {declared} 文字/秒 と実測 {mean:.2f} が 5% 以上ずれている。"
+               "channel/voice.md の話速を実測値に直し、台本の尺予算を配り直す")
+    return {"samples": samples, "measured_rate": round(mean, 2), "stddev": round(sd, 3),
+            "spread": round(spread, 4), "declared_rate": declared,
+            "declared_total_sec": total_declared, "projected_total_sec": round(actual_total, 1)}
+
+
 def find_channel(video_dir):
     """videos/<format>/<id>/ から上に辿って channel/ を探す。"""
     d = os.path.abspath(video_dir)
@@ -401,13 +471,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, help_ in (("build", "script.md + assets/ から scenes.json / timeline.json を決定的に生成する"),
-                        ("check", "成果物を機械検査する（スキーマ・1対1・尺・閉じた語彙・参照切れ）")):
+                        ("check", "成果物を機械検査する（スキーマ・1対1・尺・閉じた語彙・参照切れ）"),
+                        ("calibrate", "実際に読ませた音声から話速（文字/秒）を測る")):
         p = sub.add_parser(name, help=help_)
         p.add_argument("video_dir", help="videos/<format>/<id>/ のパス")
         p.add_argument("--json", action="store_true", help="結果を JSON で出す")
         if name == "check":
             p.add_argument("--stage", choices=["script", "assets", "thumb", "all"], default="all",
                            help="自分の担当分だけ検査する（producer の自己検査用）")
+        if name == "calibrate":
+            p.add_argument("--audio", help="SC-nn.mp3 などを置いたディレクトリ（ffprobe で秒数を読む）")
+            p.add_argument("--measure", nargs="*", default=[],
+                           help="手測りの秒数。例: --measure SC-01=5.4 SC-05=8.2")
     args = ap.parse_args()
 
     video_dir = args.video_dir
@@ -415,6 +490,31 @@ def main():
     script = parse_script(os.path.join(video_dir, "script.md"), f)
     if script is None:
         return report(f, args.json)
+
+    if args.cmd == "calibrate":
+        measured = {}
+        for kv in args.measure:
+            if "=" not in kv:
+                f.error("CAL", kv, "--measure は SC-01=5.4 の形で渡す")
+                continue
+            k, v = kv.split("=", 1)
+            try:
+                measured[k.strip()] = float(v)
+            except ValueError:
+                f.error("CAL", k, f"秒数が数値でない: {v!r}")
+        res = calibrate(video_dir, script, args.audio, measured, f)
+        if res and not args.json:
+            print("シーン  文字数  実測秒  文字/秒")
+            for s_ in res["samples"]:
+                print(f"{s_['scene_id']:7s} {s_['chars']:5d} {s_['seconds']:8.2f} {s_['rate']:8.2f}")
+            print(f"\n実測話速: {res['measured_rate']} 文字/秒"
+                  f"（標準偏差 {res['stddev']} / 変動係数 {res['spread']:.1%}）")
+            print(f"宣言話速: {res['declared_rate']} 文字/秒")
+            print(f"この台本を実測話速で読むと {res['projected_total_sec']} 秒"
+                  f"（指定は {res['declared_total_sec']} 秒）")
+            print(f"\n→ channel/voice.md の話速を {res['measured_rate']} にする")
+        return report(f, args.json, res or {})
+
     check_script(script, f)
     stage = getattr(args, "stage", "all")
     assets, thumb = {}, None
