@@ -281,9 +281,11 @@ def calibrate(video_dir, script, audio_dir, measured, f):
     # 現在の台本を、実測話速で読んだらどうなるか
     actual_total = sum(len(r["narration"]) / mean for r in script["rows"])
 
-    if len(samples) < 3:
-        f.warn("CAL", "calibrate", f"測定が {len(samples)} 件しかない。ばらつきを見るには3件以上が要る")
-    if spread > 0.10:
+    if len(samples) < 6:
+        f.warn("CAL", "calibrate",
+               f"測定が {len(samples)} 件しかない。ばらつきの推定が当てにならない"
+               "（4件で変動係数 11.2%、同じ声で9件だと 8.4% になった実例がある）。台本1本ぶん全部測る")
+    if spread > 0.10 and len(samples) >= 6:
         f.warn("CAL", "calibrate",
                f"話速のばらつきが大きい（変動係数 {spread:.1%}）。"
                "尺の構造保証が弱まるので、TTS 側で話速を固定する運用を検討する")
