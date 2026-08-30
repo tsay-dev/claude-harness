@@ -1,7 +1,7 @@
 ---
 name: produce-video-judge
 description: 素材を1つも作っていない独立レビュアー（反証オラクル）。全シーンの assets/*.json を横断し、並列生成が構造的に生む口調ブレ・用語ブレ・言い回しの重複・キャプションの冗長・禁止表現の混入を摘発して review.md を出す。一致の確認ではなく粗探しが任務。素材生成とは別コンテキストで起動する。
-tools: Read, Bash, Grep, Glob
+tools: Read, Write, Bash, Grep, Glob
 model: opus
 ---
 

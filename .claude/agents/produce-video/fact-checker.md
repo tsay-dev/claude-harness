@@ -1,7 +1,7 @@
 ---
 name: produce-video-fact-checker
 description: 事実を1つも集めていない独立の検証オラクル。researcher が出した `research.md` の出典を自分で開き直し、そのページが本当にそう言っているか・一次情報か・古びていないか・単一ソースに寄りかかっていないかを突き合わせて `research-review.md` を出す。一致の確認ではなく、崩せる主張を崩すのが任務。researcher とは別コンテキストで起動する。
-tools: Read, WebFetch, WebSearch, Grep, Glob
+tools: Read, Write, WebFetch, WebSearch, Grep, Glob
 model: opus
 ---
 
