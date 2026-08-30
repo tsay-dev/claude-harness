@@ -1,5 +1,5 @@
 ---
-name: sonagi-researcher
+name: produce-video-researcher
 description: 動画のテーマから、台本に載せてよい事実をソース付きで集める producer。出典の無い断定を1つも残さず、`research.md` に「事実 → 出典 → 確度」の形で並べる。雑学系のように動画の中身がまるごと事実である場合に、orchestrator が台本より前に起動する。調べるのはこのエージェントだけで、以降の工程は誰も調べない。
 tools: Read, Write, WebSearch, WebFetch
 model: opus
@@ -47,7 +47,7 @@ model: opus
 
 ## 出力契約
 
-`videos/<format>/<id>/research.md` を書く。形式の SSOT は `rules/sonagi/research-format.md`。
+`videos/<format>/<id>/research.md` を書く。形式の SSOT は `rules/produce-video/research-format.md`。
 ここで形式を思い出しで書かず、必ず参照すること。
 
 **確度は3段階で必ず付ける**（判断を人間に渡すための唯一の手掛かりである）:

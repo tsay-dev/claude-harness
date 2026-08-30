@@ -1,5 +1,5 @@
 ---
-name: sonagi-fact-checker
+name: produce-video-fact-checker
 description: 事実を1つも集めていない独立の検証オラクル。researcher が出した `research.md` の出典を自分で開き直し、そのページが本当にそう言っているか・一次情報か・古びていないか・単一ソースに寄りかかっていないかを突き合わせて `research-review.md` を出す。一致の確認ではなく、崩せる主張を崩すのが任務。researcher とは別コンテキストで起動する。
 tools: Read, WebFetch, WebSearch, Grep, Glob
 model: opus
@@ -69,7 +69,7 @@ AI が集めた出典には、**もっともらしいが存在しない URL** �
 
 ## 出力契約
 
-`videos/<format>/<id>/research-review.md` を書く。形式の SSOT は `rules/sonagi/research-format.md`。
+`videos/<format>/<id>/research-review.md` を書く。形式の SSOT は `rules/produce-video/research-format.md`。
 
 主張ごとに**判定・根拠・あなたが実際に開いた URL** を並べる。
 「裏が取れませんでした」だけでは人間は動けない——**どこまで辿れて、どこで行き止まったか**を書く。

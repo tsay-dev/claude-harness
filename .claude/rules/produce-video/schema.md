@@ -62,7 +62,7 @@ speech_rate: 6.5        # channel/voice.md 由来。文字/秒
 - `char_budget` = `round(duration_sec * speech_rate)`。**`duration_sec` の合計は frontmatter の `duration_sec` に一致させる。**
   これは検算で拾う性質ではなく、**書く時点で満たす制約**である（[short/direction.md](short/direction.md) の尺予算）。
 - `narration` は `char_budget` に収める。**許容幅の数値は機械検査 C5 が唯一の権威**であり、ここでは持たない
-  （[`tools/sonagi/README.md`](../../tools/sonagi/README.md)）。2箇所に数値を書くと必ずずれ、その隙間に落ちた超過を誰も検出できなくなる。
+  （[`tools/produce-video/README.md`](../../tools/produce-video/README.md)）。2箇所に数値を書くと必ずずれ、その隙間に落ちた超過を誰も検出できなくなる。
 - `narration` は**読み上げたい通りの表記**で書く（下記）。
 
 ### ナレーションの表記（TTS 非依存で読みを固定する）
@@ -125,7 +125,7 @@ speech_rate: 6.5        # channel/voice.md 由来。文字/秒
 
 ## `scenes.json` / `timeline.json`（L2・L3 導出物）
 
-**手で書かない。`tools/sonagi build` が `script.md` と `assets/*.json` から決定的に生成する。**
+**手で書かない。`tools/produce-video build` が `script.md` と `assets/*.json` から決定的に生成する。**
 `start_sec` は尺の累積和、`assets` は素材IDの解決結果であり、人間や LLM が計算する価値がない。
 
 ```json

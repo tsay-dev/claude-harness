@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""sonagi — L2/L3 の決定的な組み立て（build）と、成果物の機械検査（check）。
+"""produce-video — L2/L3 の決定的な組み立て（build）と、成果物の機械検査（check）。
 
-このスクリプトは sonagi skill の「機械オラクル」である。
+このスクリプトは produce-video skill の「機械オラクル」である。
 LLM に算数（累積秒・合計尺・1対1の対応）をさせず、ここで決定的に落とす。
-書式の SSOT は .claude/rules/sonagi/schema.md。
+書式の SSOT は .claude/rules/produce-video/schema.md。
 """
 import argparse
 import json
@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 
-# --- 閉じた語彙（SSOT: rules/sonagi/schema.md）--------------------------------
+# --- 閉じた語彙（SSOT: rules/produce-video/schema.md）--------------------------------
 ROLES = {"hook", "setup", "body", "turn", "cta"}
 LAYOUTS = {"full-bleed", "split", "caption-over", "title-card", "side-by-side"}
 TRANSITIONS = {"cut", "fade", "slide", "zoom", "whip"}
@@ -455,7 +455,7 @@ def check_built(video_dir, script, f):
     tp = os.path.join(video_dir, "timeline.json")
     for p, label in ((sp, "scenes.json"), (tp, "timeline.json")):
         if not os.path.exists(p):
-            f.error("C13", label, "未生成（`sonagi build` を回す）")
+            f.error("C13", label, "未生成（`produce-video build` を回す）")
             return
     s = json.load(open(sp, encoding="utf-8"))
     tl = json.load(open(tp, encoding="utf-8"))
@@ -497,7 +497,7 @@ def report(f, as_json, extra=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="sonagi", description=__doc__,
+    ap = argparse.ArgumentParser(prog="produce-video", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, help_ in (("build", "script.md + assets/ から scenes.json / timeline.json を決定的に生成する"),

@@ -9,7 +9,7 @@ paths:
 > 動画制作を **L0→L4 の一方向の派生**として型に落とし、各層の成果物をファイルとして固定する。
 > ここは**この型の不変の核**（最初に読む）。書式の詳細は [schema.md](schema.md) / [channel-format.md](channel-format.md)、
 > ショートの演出方針は [short/direction.md](short/direction.md)。
-> 実行手続きは skill [sonagi](../../skills/sonagi/SKILL.md)。
+> 実行手続きは skill [produce-video](../../skills/produce-video/SKILL.md)。
 
 ## なぜ階層で切るか
 
@@ -24,7 +24,7 @@ paths:
 | **L0-** | 調査（任意） | `research.md`（出典付きの事実）＋ `research-review.md`（独立検証） | researcher / fact-checker |
 | **L0** | 意図 | `brief.yaml`（企画・人間が与える）→ `script.md`（台本） | 人間 → script-writer |
 | **L1** | 原子素材 | `assets/SC-nn.json`（キャプション・ナレーション・画像プロンプト・効果音・レイアウト意図）/ `assets/THUMB.json` | asset-generator / publisher |
-| **L2** | コマ | `scenes.json`（素材ID群・開始秒・尺・レイアウト・出入りトランジション） | **スクリプト**（`tools/sonagi build`） |
+| **L2** | コマ | `scenes.json`（素材ID群・開始秒・尺・レイアウト・出入りトランジション） | **スクリプト**（`tools/produce-video build`） |
 | **L3** | タイムライン | `timeline.json`（コマの配列＋BGM＋解像度・fps・アスペクト） | **スクリプト**（同上） |
 | **L4** | 公開パッケージ | `publish.md`（タイトル案3・説明文・タグ・チャプター）＋ `assets/THUMB.json` | publisher |
 
@@ -71,4 +71,4 @@ paths:
 だから L1 完了後、素材を1つも書いていない `judge` が全シーンを横断して撃つ。
 
 機械が反証できるもの（尺の合計・台本行とコマの1対1・閉じた語彙・参照切れ）は
-`tools/sonagi check` が決定的に落とす。**LLM に算数をさせない。**
+`tools/produce-video check` が決定的に落とす。**LLM に算数をさせない。**

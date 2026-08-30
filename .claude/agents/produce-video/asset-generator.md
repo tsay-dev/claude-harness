@@ -1,5 +1,5 @@
 ---
-name: sonagi-asset-generator
+name: produce-video-asset-generator
 description: 台本の1シーンから L1 原子素材（キャプション・テロップ・画像プロンプト・効果音・レイアウト意図）を起こす producer。シーン単位で並列起動される。担当シーンの assets/SC-nn.json を1つだけ書く。素材を生成したいときに orchestrator がシーンの数だけ起動する。
 tools: Read, Write, Bash
 model: inherit
@@ -52,7 +52,7 @@ model: inherit
 - **テロップは3語以内（日本語で12文字以内が目安）。** 読ませるのではなく、**目に入った瞬間に分かる**ことを狙う。
 - **`channel/identity.md` の禁止表現を使わない。** これは好みではなく、チャンネルの約束である。
 
-数値方針の SSOT は `rules/sonagi/short/direction.md`。必ず読むこと。
+数値方針の SSOT は `rules/produce-video/short/direction.md`。必ず読むこと。
 
 ## craft — 画像プロンプト
 
@@ -71,7 +71,7 @@ model: inherit
 
 ## 🔒 閉じた語彙
 
-`role` / `layout` / `transition_in` / `transition_out` / `sfx` は**列挙値以外を書いてはならない**（SSOT: `rules/sonagi/schema.md`）。
+`role` / `layout` / `transition_in` / `transition_out` / `sfx` は**列挙値以外を書いてはならない**（SSOT: `rules/produce-video/schema.md`）。
 
 **境界の演出は2シーンで1つの事象である。** `script.md` を見て自分の前後のシーンを確かめ、
 自分の `transition_out` を**次のシーンの `transition_in` と同じ値**にする（機械検査 C15）。
@@ -81,12 +81,12 @@ model: inherit
 
 ## 出力契約
 
-`videos/<format>/<id>/assets/<scene_id>.json` を**1つだけ**書く。形式の SSOT は `rules/sonagi/schema.md`。
+`videos/<format>/<id>/assets/<scene_id>.json` を**1つだけ**書く。形式の SSOT は `rules/produce-video/schema.md`。
 
 書いたら自分で検算する:
 
 ```bash
-python3 .claude/tools/sonagi/sonagi.py check <videos/<format>/<id>> --stage assets
+python3 .claude/tools/produce-video/produce-video.py check <videos/<format>/<id>> --stage assets
 ```
 
 **自分の `scene_id` に関する ERROR だけ**を直す。他シーンの C6（素材が無い）は並列中の他者の担当なので**触るな**。

@@ -1,29 +1,29 @@
-# tools/sonagi — sonagi の機械オラクル
+# tools/produce-video — produce-video の機械オラクル
 
-`sonagi` skill の L2/L3 を**決定的に組み立て**、成果物を**機械検査**する。
+`produce-video` skill の L2/L3 を**決定的に組み立て**、成果物を**機械検査**する。
 LLM に累積秒・合計尺・1対1の対応を計算させないためのもの。書式の SSOT は
-[`rules/sonagi/schema.md`](../../rules/sonagi/schema.md)（閉じた語彙もそこが正）。
+[`rules/produce-video/schema.md`](../../rules/produce-video/schema.md)（閉じた語彙もそこが正）。
 
 ## 使い方
 
 ```bash
 # script.md + assets/*.json → scenes.json / timeline.json
-python3 .claude/tools/sonagi/sonagi.py build <channel>/videos/short/<id>
+python3 .claude/tools/produce-video/produce-video.py build <channel>/videos/short/<id>
 
 # 成果物を検査（ERROR があれば exit 1）
-python3 .claude/tools/sonagi/sonagi.py check <channel>/videos/short/<id>
+python3 .claude/tools/produce-video/produce-video.py check <channel>/videos/short/<id>
 
 # 機械が読む形で
-python3 .claude/tools/sonagi/sonagi.py check <path> --json
+python3 .claude/tools/produce-video/produce-video.py check <path> --json
 
 # 使う TTS で話速を実測する（channel/voice.md に入れる数値を決める）
-python3 .claude/tools/sonagi/sonagi.py calibrate <path> --audio <音声を置いたディレクトリ>
-python3 .claude/tools/sonagi/sonagi.py calibrate <path> --measure SC-01=5.4 SC-05=8.2
+python3 .claude/tools/produce-video/produce-video.py calibrate <path> --audio <音声を置いたディレクトリ>
+python3 .claude/tools/produce-video/produce-video.py calibrate <path> --measure SC-01=5.4 SC-05=8.2
 
 # 自分の担当分だけ（producer の自己検査）
-python3 .claude/tools/sonagi/sonagi.py check <path> --stage script   # C1-C5
-python3 .claude/tools/sonagi/sonagi.py check <path> --stage assets   # + C6-C9,C11,C12
-python3 .claude/tools/sonagi/sonagi.py check <path> --stage thumb    # + C10
+python3 .claude/tools/produce-video/produce-video.py check <path> --stage script   # C1-C5
+python3 .claude/tools/produce-video/produce-video.py check <path> --stage assets   # + C6-C9,C11,C12
+python3 .claude/tools/produce-video/produce-video.py check <path> --stage thumb    # + C10
 ```
 
 `--stage` があるのは、**まだ存在しない下流の成果物を「無い」と怒られずに自己検査するため**である。

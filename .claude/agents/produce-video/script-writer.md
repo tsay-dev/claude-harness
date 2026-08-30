@@ -1,5 +1,5 @@
 ---
-name: sonagi-script-writer
+name: produce-video-script-writer
 description: 企画（brief.yaml）から台本（script.md）を起こす producer。シーンへ尺予算を配分し、各シーンのナレーション原稿を文字予算内で書く。ショート動画の構成（フックの置き方・本題への入り方・尺配分）の craft を持つ唯一のエージェント。台本を生成したいときに orchestrator が起動する。
 tools: Read, Write, Edit, Bash
 model: opus
@@ -46,10 +46,10 @@ model: opus
 
 1. `brief.yaml` の `duration_sec` を役割（`hook`/`setup`/`body`/`turn`/`cta`）へ配分する。**合計は指定尺にきっかり一致させる。**
 2. 各シーンの `char_budget` = `round(duration_sec × speech_rate)`。
-3. `narration` を**その文字予算に収める**。許容幅は `sonagi check --stage script` が判定する（数値をここに書き写さない）。
+3. `narration` を**その文字予算に収める**。許容幅は `produce-video check --stage script` が判定する（数値をここに書き写さない）。
    入り切らないなら、文を切り詰めるのではなく**配分をやり直す**。文を削って意味が通らなくなるほうが損失が大きい。
 
-配分の目安・1シーンの長さ・フックの置き方といった**ショート固有の数値方針は、`rules/sonagi/short/direction.md` が SSOT**である。
+配分の目安・1シーンの長さ・フックの置き方といった**ショート固有の数値方針は、`rules/produce-video/short/direction.md` が SSOT**である。
 必ず読んでから配分する。ここに写して二重管理しない。
 
 ## craft — 台本の中身
@@ -59,12 +59,12 @@ model: opus
 - **1シーン＝1つのことだけ言う。** 2つ言いたくなったらシーンを割る。尺予算がそれを許さないなら、片方を捨てる。
 - **前のシーンの続きとして書く。** 各シーンで話題を導入し直さない。主語を毎回言い直さない。
 - **口調は `channel/voice.md` に従う。** 語尾・一人称・言い換え表を機械的に踏襲する。あなたの好みの文体を持ち込まない。
-- **読み上げたい通りの表記で書く。** 数字・英字・読みの割れる漢字の扱いは `rules/sonagi/schema.md` の「ナレーションの表記」に従う。
+- **読み上げたい通りの表記で書く。** 数字・英字・読みの割れる漢字の扱いは `rules/produce-video/schema.md` の「ナレーションの表記」に従う。
   TTS に読みを指示する手段が無いので、**表記そのものが読みの指定である**。
 
 ## 出力契約
 
-`videos/<format>/<id>/script.md` を書く。**形式は `rules/sonagi/schema.md` の `script.md` が SSOT**（表形式・列は固定）。
+`videos/<format>/<id>/script.md` を書く。**形式は `rules/produce-video/schema.md` の `script.md` が SSOT**（表形式・列は固定）。
 `research.md` を使ったなら、**各シーンがどの `F-nnn` に依拠しているか**を表に持たせる
 （依拠の無いシーンは空でよいが、**事実を述べているのに空なら、それは出典の無い断定である**）。
 ここで形式を思い出しで書かず、必ず参照すること。表の1行がそのまま1コマになるので、**散文で書くと後続が全部壊れる**。
@@ -72,7 +72,7 @@ model: opus
 書いたら**自分で検算する**:
 
 ```bash
-python3 .claude/tools/sonagi/sonagi.py check <videos/<format>/<id>> --stage script
+python3 .claude/tools/produce-video/produce-video.py check <videos/<format>/<id>> --stage script
 ```
 
 C1〜C5 の ERROR が消えるまで自分で直す。**ERROR を残したまま返してはならない。**

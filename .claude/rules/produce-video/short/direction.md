@@ -7,7 +7,7 @@ paths:
 
 > 縦型ショート（`videos/short/`）に固有の数値と作法。層の型は [../overview.md](../overview.md)、
 > 書式は [../schema.md](../schema.md)。
-> 実行手続きは skill [sonagi](../../../skills/sonagi/SKILL.md)。
+> 実行手続きは skill [produce-video](../../../skills/produce-video/SKILL.md)。
 
 ## 前提：視聴者はいつでも去れる
 
@@ -24,7 +24,7 @@ paths:
 1. `brief.yaml` の `duration_sec` を全シーンへ配分する。**配分の合計は指定尺に一致する。**
 2. 各シーンの文字予算 = `round(duration_sec × speech_rate)`（`speech_rate` は `channel/voice.md`、既定 6.5 文字/秒）。
 3. ナレーションは**その文字予算に収める**。入り切らないなら、文を削るのではなく**シーンの配分をやり直す**。
-   許容幅の数値は機械検査 C5 が持つ（`sonagi check --stage script` が判定する）。**ここに数値を書き写さない**——
+   許容幅の数値は機械検査 C5 が持つ（`produce-video check --stage script` が判定する）。**ここに数値を書き写さない**——
    2箇所に書けば必ずずれ、その隙間に落ちた超過を誰も検出できなくなる。
 
 ### 上限があるなら、指定尺を上限より下げる
@@ -32,7 +32,7 @@ paths:
 `brief.yaml` の `duration_sec` は**出来上がりの目標**であって、実尺ではない。
 話速はシーンごとにばらつくので、実尺は指定尺の周りに散る。**上限ぴったりを指定すると半分は超える。**
 
-どれだけ下げるかは、`sonagi calibrate` が出す変動係数から決まる。実測例:
+どれだけ下げるかは、`produce-video calibrate` が出す変動係数から決まる。実測例:
 
 | 変動係数 | 60秒指定の実尺（9割の範囲） | 上限60秒に収めたいときの指定尺 |
 | --- | --- | --- |

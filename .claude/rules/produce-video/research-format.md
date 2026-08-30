@@ -7,7 +7,7 @@ paths:
 
 > 動画の中身がまるごと事実である場合（雑学・解説など）に、台本より前に置く工程の書式。
 > なぜ調査を1工程に閉じ込めるかは [overview.md](overview.md)。
-> 実行手続きは skill [sonagi](../../skills/sonagi/SKILL.md)。
+> 実行手続きは skill [produce-video](../../skills/produce-video/SKILL.md)。
 
 ## この工程が背負っているもの
 

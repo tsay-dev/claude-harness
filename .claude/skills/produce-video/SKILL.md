@@ -1,13 +1,13 @@
 ---
-name: sonagi
-description: 企画から動画の制作定義一式（台本・素材プロンプト・コマ定義・タイムライン・公開パッケージ）を生成する。このスキルを起動したメインエージェントは中立の orchestrator として振る舞い、自分では書かず・判定せず、.claude/agents/sonagi の researcher / fact-checker / script-writer / asset-generator / publisher / judge を起動する。事実が中身のテーマでは出典付きで調べ、集めた本人でない検証者が出典を開き直す。画像・音声・動画の実体は生成せず、出力はプロンプトと定義まで（channel/ は読み取りのみ・更新は差分提案）。「ショート動画を作りたい」「動画の台本を書いて」「YouTube ショート／TikTok／Reels の企画を形にしたい」「解説動画の構成を作って」「サムネとタイトルを考えて」ときは必ずこのスキルを使う。動画・台本・シーン・ナレーション・テロップ・サムネ・タイムラインのいずれかが話題に出たら、明示的に「スキルを使って」と言われなくても起動を検討する。
+name: produce-video
+description: 企画から動画の制作定義一式（台本・素材プロンプト・コマ定義・タイムライン・公開パッケージ）を生成する。このスキルを起動したメインエージェントは中立の orchestrator として振る舞い、自分では書かず・判定せず、.claude/agents/produce-video の researcher / fact-checker / script-writer / asset-generator / publisher / judge を起動する。事実が中身のテーマでは出典付きで調べ、集めた本人でない検証者が出典を開き直す。画像・音声・動画の実体は生成せず、出力はプロンプトと定義まで（channel/ は読み取りのみ・更新は差分提案）。「ショート動画を作りたい」「動画の台本を書いて」「YouTube ショート／TikTok／Reels の企画を形にしたい」「解説動画の構成を作って」「サムネとタイトルを考えて」ときは必ずこのスキルを使う。動画・台本・シーン・ナレーション・テロップ・サムネ・タイムラインのいずれかが話題に出たら、明示的に「スキルを使って」と言われなくても起動を検討する。
 ---
 
-# 🎬 sonagi — 動画制作定義の指揮者（orchestrator）
+# 🎬 produce-video — 動画制作定義の指揮者（orchestrator）
 
 > **このスキルを起動した時点で、あなた（メインエージェント）は中立の orchestrator である。**
-> あなたは書かない・判定しない。**専門サブエージェント（`.claude/agents/sonagi/`）を Task ツール（Grok Build では `task` / `spawn_subagent`、`subagent_type` は `sonagi-script-writer` / `sonagi-asset-generator` / `sonagi-publisher` / `sonagi-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。
-> 型（なぜ・何を・書式）の SSOT は rules（`.claude/rules/sonagi/`）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡された agent である。
+> あなたは書かない・判定しない。**専門サブエージェント（`.claude/agents/produce-video/`）を Task ツール（Grok Build では `task` / `spawn_subagent`、`subagent_type` は `produce-video-script-writer` / `produce-video-asset-generator` / `produce-video-publisher` / `produce-video-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。
+> 型（なぜ・何を・書式）の SSOT は rules（`.claude/rules/produce-video/`）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡された agent である。
 > 各 agent の craft（構成・言い回し・画作り）は agent body が SSOT。本 SKILL は**どう回すか**だけを持ち、rules も agent body も複製しない（**参照は rules → skill の一方通行**）。
 
 ## 🔒 このスキルが踏み越えない線
@@ -35,14 +35,14 @@ description: 企画から動画の制作定義一式（台本・素材プロン�
 | 役割 | 実体 | 担当 |
 | --- | --- | --- |
 | **orchestrator（中立）** | このスキルを起動したあなた（インライン） | 入力確定・起動・スクリプト実行・分岐・引き渡し。**自分では書かない・判定しない** |
-| **researcher** | [`agents/sonagi/researcher.md`](../../agents/sonagi/researcher.md) | 出典付きの事実収集。**外部を調べる唯一の主体** |
-| **fact-checker** | [`agents/sonagi/fact-checker.md`](../../agents/sonagi/fact-checker.md) | 出典を開き直す反証。**事実を集めていない別コンテキスト必須** |
-| **script-writer** | [`agents/sonagi/script-writer.md`](../../agents/sonagi/script-writer.md) | L0 台本＋尺予算の配分 |
-| **asset-generator** | [`agents/sonagi/asset-generator.md`](../../agents/sonagi/asset-generator.md) | L1 素材。**シーン単位で並列**、1体1ファイル |
-| **publisher** | [`agents/sonagi/publisher.md`](../../agents/sonagi/publisher.md) | L4 公開パッケージ＋サムネ定義 |
-| **judge** | [`agents/sonagi/judge.md`](../../agents/sonagi/judge.md) | L1 横断の反証。**素材を書いていない別コンテキスト必須** |
+| **researcher** | [`agents/produce-video/researcher.md`](../../agents/produce-video/researcher.md) | 出典付きの事実収集。**外部を調べる唯一の主体** |
+| **fact-checker** | [`agents/produce-video/fact-checker.md`](../../agents/produce-video/fact-checker.md) | 出典を開き直す反証。**事実を集めていない別コンテキスト必須** |
+| **script-writer** | [`agents/produce-video/script-writer.md`](../../agents/produce-video/script-writer.md) | L0 台本＋尺予算の配分 |
+| **asset-generator** | [`agents/produce-video/asset-generator.md`](../../agents/produce-video/asset-generator.md) | L1 素材。**シーン単位で並列**、1体1ファイル |
+| **publisher** | [`agents/produce-video/publisher.md`](../../agents/produce-video/publisher.md) | L4 公開パッケージ＋サムネ定義 |
+| **judge** | [`agents/produce-video/judge.md`](../../agents/produce-video/judge.md) | L1 横断の反証。**素材を書いていない別コンテキスト必須** |
 
-L2/L3 は**エージェントではなくスクリプト**が作る（`tools/sonagi`）。累積秒・合計尺・1対1の対応は**LLM に計算させない**。
+L2/L3 は**エージェントではなくスクリプト**が作る（`tools/produce-video`）。累積秒・合計尺・1対1の対応は**LLM に計算させない**。
 
 ## 実行台本（orchestrator の回し方）
 
@@ -85,11 +85,11 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
 
 8. **組み立てと検算（スクリプト）。**
    ```bash
-   python3 .claude/tools/sonagi/sonagi.py build  <videos/<format>/<id>>
-   python3 .claude/tools/sonagi/sonagi.py check  <videos/<format>/<id>>
+   python3 .claude/tools/produce-video/produce-video.py build  <videos/<format>/<id>>
+   python3 .claude/tools/produce-video/produce-video.py check  <videos/<format>/<id>>
    ```
    `build` は ERROR がある間は何も書かない。ERROR が出たら、**その `scene_id` の担当だけ**を再起動して直す。
-   検査コードの意味は [`tools/sonagi/README.md`](../../tools/sonagi/README.md)。
+   検査コードの意味は [`tools/produce-video/README.md`](../../tools/produce-video/README.md)。
 
 9. **引き渡し。** 成果物一覧と、人間の仕事（下記）を明示する。
 
@@ -122,5 +122,5 @@ L2/L3 は**エージェントではなくスクリプト**が作る（`tools/son
 - [ ] **台本の人間ゲートを通したか**（承認前に素材生成へ進んでいないか）
 - [ ] 既に在る素材ファイルのシーンを再起動していないか（人間の手直しを巻き戻していないか）
 - [ ] 横断レビューを**素材を書いていない別サブエージェント（judge）**で回したか（自己レビューにしていないか）
-- [ ] `sonagi check` が ERROR ゼロで通ったか
+- [ ] `produce-video check` が ERROR ゼロで通ったか
 - [ ] 解釈が割れるものを黙って1つに丸めず、`⚠` のまま人間へ回したか

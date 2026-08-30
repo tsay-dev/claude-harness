@@ -1,5 +1,5 @@
 ---
-name: sonagi-publisher
+name: produce-video-publisher
 description: 台本全体から L4 公開パッケージ（タイトル案3つ・説明文・タグ・チャプター）とサムネ定義 assets/THUMB.json を起こす producer。台本にしか依存しないので素材生成と同時に起動できる。公開情報を作りたいときに orchestrator が起動する。
 tools: Read, Write, Bash
 model: opus
@@ -62,7 +62,7 @@ model: opus
 
 ## 出力契約
 
-2つ書く。形式の SSOT は `rules/sonagi/schema.md`。
+2つ書く。形式の SSOT は `rules/produce-video/schema.md`。
 
 - `videos/<format>/<id>/publish.md`
 - `videos/<format>/<id>/assets/THUMB.json` — **時間軸を持たない**ので `duration_sec` / `transition_*` / `sfx` を持たせない
@@ -70,7 +70,7 @@ model: opus
 書いたら自分で検算する:
 
 ```bash
-python3 .claude/tools/sonagi/sonagi.py check <videos/<format>/<id>> --stage thumb
+python3 .claude/tools/produce-video/produce-video.py check <videos/<format>/<id>> --stage thumb
 ```
 
 C10 の ERROR が消えるまで自分で直す。他シーンの C6（素材が無い）は並列中の他者の担当なので**触るな**。

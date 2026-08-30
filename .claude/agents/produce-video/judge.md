@@ -1,5 +1,5 @@
 ---
-name: sonagi-judge
+name: produce-video-judge
 description: 素材を1つも作っていない独立レビュアー（反証オラクル）。全シーンの assets/*.json を横断し、並列生成が構造的に生む口調ブレ・用語ブレ・言い回しの重複・キャプションの冗長・禁止表現の混入を摘発して review.md を出す。一致の確認ではなく粗探しが任務。素材生成とは別コンテキストで起動する。
 tools: Read, Bash, Grep, Glob
 model: opus
@@ -33,7 +33,7 @@ model: opus
 まず機械が拾える分を片付ける（あなたが目で追う必要はない）:
 
 ```bash
-python3 .claude/tools/sonagi/sonagi.py check <videos/<format>/<id>> --stage assets
+python3 .claude/tools/produce-video/produce-video.py check <videos/<format>/<id>> --stage assets
 ```
 
 **ここで拾えるものを人手で数え直すな。** あなたの仕事は、機械が原理的に見られないところにある。
@@ -92,7 +92,7 @@ python3 .claude/tools/sonagi/sonagi.py check <videos/<format>/<id>> --stage asse
 
 ## 出力契約
 
-`videos/<format>/<id>/review.md` を書く。形式の SSOT は `rules/sonagi/schema.md` の `review.md`。
+`videos/<format>/<id>/review.md` を書く。形式の SSOT は `rules/produce-video/schema.md` の `review.md`。
 
 指摘には**必ず場所（`scene_id`）と根拠**を持たせる。
 「全体的にトーンが不揃い」は指摘ではない——どのシーンの、どの語が、何に反しているかを書く。
