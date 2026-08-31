@@ -22,6 +22,9 @@ BGM_MOODS = {"upbeat", "calm", "tense", "warm", "neutral"}
 IMAGE_KEYS = ["subject", "composition", "lighting", "style", "aspect", "negative"]
 ASSET_KEYS = ["scene_id", "role", "duration_sec", "narration", "caption", "telop",
               "image", "sfx", "layout", "transition_in", "transition_out"]
+I18N_TOP_KEYS = ["video_id", "lang", "speech_rate", "scenes", "publish", "thumb_telop"]
+I18N_SCENE_KEYS = ["scene_id", "narration", "caption", "telop"]
+I18N_PUBLISH_KEYS = ["titles", "description", "tags"]
 
 FORMAT_PRESETS = {
     "short": {"resolution": "1080x1920", "fps": 30, "aspect": "9:16"},
@@ -326,6 +329,81 @@ def calibrate(video_dir, script, audio_dir, measured, f):
             "declared_total_sec": total_declared, "projected_total_sec": round(actual_total, 1)}
 
 
+def load_i18n(video_dir, f, lang=None):
+    """i18n/<lang>.json を {lang: doc} にする。ディレクトリが無ければ空（多言語はオプション）。"""
+    d = os.path.join(video_dir, "i18n")
+    docs = {}
+    if not os.path.isdir(d):
+        if lang:
+            f.error("C19", f"i18n/{lang}.json", "i18n/ が無い（localizer をまだ回していない）")
+        return docs
+    names = [f"{lang}.json"] if lang else sorted(n for n in os.listdir(d) if n.endswith(".json"))
+    for name in names:
+        p = os.path.join(d, name)
+        code = name[:-5]
+        if not os.path.exists(p):
+            f.error("C19", f"i18n/{name}", "言語ファイルが無い")
+            continue
+        try:
+            docs[code] = json.load(open(p, encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            f.error("C19", f"i18n/{name}", f"JSON として壊れている: {e}")
+    return docs
+
+
+def check_i18n(video_dir, script, i18n, f):
+    """C19 構造と1対1 / C20 言語別の文字予算。i18n/ が無いなら何も言わない。"""
+    ids = [r["scene_id"] for r in script["rows"]]
+    durs = {r["scene_id"]: r["duration_sec"] for r in script["rows"]}
+    vid = script["frontmatter"].get("video_id")
+    for lang, doc in i18n.items():
+        where = f"i18n/{lang}.json"
+        for key in I18N_TOP_KEYS:
+            if key not in doc:
+                f.error("C19", where, f"必須キー `{key}` が無い")
+        if doc.get("lang") not in (None, lang):
+            f.error("C19", where, f"lang `{doc.get('lang')}` がファイル名 `{lang}` と一致しない")
+        if vid and doc.get("video_id") not in (None, vid):
+            f.error("C19", where, f"video_id `{doc.get('video_id')}` が台本 `{vid}` と一致しない")
+        rate = doc.get("speech_rate")
+        if not isinstance(rate, (int, float)) or rate <= 0:
+            f.error("C19", where, "speech_rate が正の数値でない（channel/voice.md のその言語の実測値を写す）")
+            rate = None
+        # C19 シーンの1対1
+        scenes = {s.get("scene_id"): s for s in doc.get("scenes", []) if isinstance(s, dict)}
+        for sid in ids:
+            if sid not in scenes:
+                f.error("C19", f"{where}:{sid}", "台本にあるシーンの訳が無い")
+        for sid in scenes:
+            if sid not in ids:
+                f.error("C19", f"{where}:{sid}", "台本に無いシーンの訳が残っている")
+        for sid, s in scenes.items():
+            for key in I18N_SCENE_KEYS:
+                if key not in s:
+                    f.error("C19", f"{where}:{sid}", f"必須キー `{key}` が無い")
+            # C20 文字予算。マスターのタイムラインは固定なので超過だけが欠陥。短い側は WARN（間になる）
+            if rate and sid in durs:
+                budget = round(durs[sid] * rate)
+                n = len(s.get("narration", ""))
+                hi = budget * (1 + NARRATION_TOLERANCE)
+                lo = budget * (1 - NARRATION_TOLERANCE)
+                if n > hi:
+                    f.error("C20", f"{where}:{sid}",
+                            f"訳文 {n}文字 が予算 {budget}文字 +{int(NARRATION_TOLERANCE*100)}% を超える"
+                            "（そのシーンの窓に音が入らない。情報を削って収める）")
+                elif n < lo:
+                    f.warn("C20", f"{where}:{sid}",
+                           f"訳文 {n}文字 が予算 {budget}文字 に対して短い（余りは間になる。意図的なら可）")
+        pub = doc.get("publish")
+        if isinstance(pub, dict):
+            for key in I18N_PUBLISH_KEYS:
+                if key not in pub:
+                    f.error("C19", where, f"publish に必須キー `{key}` が無い")
+            titles = pub.get("titles")
+            if isinstance(titles, list) and len(titles) != 3:
+                f.error("C19", where, f"publish.titles は3案（{len(titles)}案になっている）")
+
+
 def find_channel(video_dir):
     """videos/<format>/<id>/ から上に辿って channel/ を探す。"""
     d = os.path.abspath(video_dir)
@@ -534,12 +612,13 @@ def main():
         p.add_argument("video_dir", help="videos/<format>/<id>/ のパス")
         p.add_argument("--json", action="store_true", help="結果を JSON で出す")
         if name == "check":
-            p.add_argument("--stage", choices=["script", "assets", "thumb", "all"], default="all",
+            p.add_argument("--stage", choices=["script", "assets", "thumb", "i18n", "all"], default="all",
                            help="自分の担当分だけ検査する（producer の自己検査用）")
         if name == "calibrate":
             p.add_argument("--audio", help="SC-nn.mp3 などを置いたディレクトリ（ffprobe で秒数を読む）")
             p.add_argument("--measure", nargs="*", default=[],
                            help="手測りの秒数。例: --measure SC-01=5.4 SC-05=8.2")
+            p.add_argument("--lang", help="i18n/<lang>.json の訳文で測る（その言語の話速を出す）")
     args = ap.parse_args()
 
     video_dir = args.video_dir
@@ -559,6 +638,17 @@ def main():
                 measured[k.strip()] = float(v)
             except ValueError:
                 f.error("CAL", k, f"秒数が数値でない: {v!r}")
+        if args.lang:
+            # その言語の訳文（i18n/<lang>.json）を標本にする。話速は「TTS × 声 × モデル × 言語」ごとの性質
+            docs = load_i18n(video_dir, f, lang=args.lang)
+            doc = docs.get(args.lang)
+            if doc is None:
+                return report(f, args.json)
+            script = {"frontmatter": {"speech_rate": doc.get("speech_rate"),
+                                      "duration_sec": script["frontmatter"].get("duration_sec"),
+                                      "video_id": script["frontmatter"].get("video_id")},
+                      "rows": [{"scene_id": s.get("scene_id", ""), "narration": s.get("narration", "")}
+                               for s in doc.get("scenes", []) if isinstance(s, dict)]}
         res = calibrate(video_dir, script, args.audio, measured, f)
         if res and not args.json:
             print("シーン  文字数  実測秒  文字/秒")
@@ -569,7 +659,8 @@ def main():
             print(f"宣言話速: {res['declared_rate']} 文字/秒")
             print(f"この台本を実測話速で読むと {res['projected_total_sec']} 秒"
                   f"（指定は {res['declared_total_sec']} 秒）")
-            print(f"\n→ channel/voice.md の話速を {res['measured_rate']} にする")
+            target = f"{args.lang} の話速" if getattr(args, "lang", None) else "話速"
+            print(f"\n→ channel/voice.md の {target} を {res['measured_rate']} にする")
         return report(f, args.json, res or {})
 
     check_script(script, f)
@@ -583,6 +674,8 @@ def main():
         thumb = load_thumb(video_dir, f)
     if args.cmd == "build" or stage in ("assets", "all"):
         check_visual_consistency(video_dir, script, assets, thumb, f)
+    if stage in ("i18n", "all"):
+        check_i18n(video_dir, script, load_i18n(video_dir, f), f)
 
     if args.cmd == "build":
         if f.errors:

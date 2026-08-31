@@ -25,19 +25,24 @@ paths:
 ```
 <adapter> <video_dir> preflight
 <adapter> <video_dir> images   [--only SC-03 ...]
-<adapter> <video_dir> audio    [--only ...]
+<adapter> <video_dir> audio    [--only ...] [--lang <code>]
 <adapter> <video_dir> retime
 <adapter> <video_dir> sfx      [--only ...]
 <adapter> <video_dir> bgm
+<adapter> <video_dir> srt      [--lang <code>]
 <adapter> <video_dir> video    [--only ...]
-<adapter> <video_dir> compose
+<adapter> <video_dir> compose  [--lang <code>]
 <adapter> <video_dir> all
 ```
+
+`--lang` 付きの工程は **`i18n/<lang>.json` が在るときだけ**意味を持つ（無い動画では単言語のまま）。
 
 ### 守ること
 
 - **出力は `<video_dir>/media/` 配下の固定名だけ。** それ以外の場所に書かない
-  （`<scene_id>.png` / `<scene_id>.mp3` / `<scene_id>.sfx.mp3` / `<scene_id>.mp4` / `bgm.mp3` / `final.mp4`）
+  （`<scene_id>.png` / `<scene_id>.mp3` / `<scene_id>.sfx.mp3` / `<scene_id>.mp4` / `bgm.mp3` / `final.mp4`。
+  多言語ぶんは `<lang>/<scene_id>.mp3` / `<lang>.srt` / `final.audio.<lang>.mp3` — マスター言語のファイル名は据え置き、
+  言語が増えてもマスターのパスが動かないことが「在るものは作り直さない」を言語追加後も成立させる）
 - **在るファイルは作り直さない。** 課金が発生するので、これは実害の回避である
 - **`--only` で対象を絞れる。** 1つだけ作り直したいときに全部を回さないため
 - **定義を書き換えない。** `script.md` / `scenes.json` / `timeline.json` は読み取り専用
@@ -46,6 +51,23 @@ paths:
   大きい側で作って切り詰める。**その事情を型の側に漏らさない**
 - **秘密を、git に追跡されるファイルから読まない**（下記）
 - **`preflight` は課金の前に叩かれる。** 何も生成せず、何も課金しない
+
+### 多言語（`--lang`）の契約
+
+全言語が**1本の映像とマスターの実測タイムラインを共有する**（[retime.md](retime.md)）。アダプタが守るのは:
+
+- **`audio --lang <code>`** … `i18n/<lang>.json` のナレーションを、マスターと同じ声の設定で
+  `media/<lang>/<scene_id>.mp3` に生成する。生成後に**必ず実測し**、そのシーンの窓
+  （`timeline.actual.json` の尺から発話開始のオフセットを引いた長さ）に**収まらないものは報告する**。
+  **黙って速度を変えて詰め込まない・切り詰めない**——それは翻訳側（定義）の欠陥であり、
+  実測で押し通すと不自然な早口が完成物に残る。短い側は無音で埋まるだけなので欠陥ではない。
+- **`srt --lang <code>`** … `timeline.actual.json` の実測秒と、caption（マスター言語は `assets/*.json`、
+  他言語は `i18n/<lang>.json`）から字幕ファイル `media/<lang>.srt` を機械的に起こす。
+  **外部サービスを叩かず、課金ゼロ**（在れば作り直してよい唯一の例外ではなく、消して再実行の規律は同じ）。
+- **`compose --lang <code>`** … 言語別の完成音声 `media/final.audio.<lang>.mp3` を、
+  マスターと同じ間・同じ BGM/効果音の設計で合成する。**映像は言語で分けない**
+  （複数音声トラックを1本の動画に載せる配信形態が前提。映像に焼く文字をどの言語にするかは
+  ホスト／チャンネルの方針であり、この契約は定めない）。
 
 ### 🔒 秘密（API キー）の扱い
 

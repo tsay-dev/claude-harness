@@ -20,10 +20,14 @@ python3 .claude/tools/produce-video/produce-video.py check <path> --json
 python3 .claude/tools/produce-video/produce-video.py calibrate <path> --audio <音声を置いたディレクトリ>
 python3 .claude/tools/produce-video/produce-video.py calibrate <path> --measure SC-01=5.4 SC-05=8.2
 
+# 多言語: その言語の訳文（i18n/<lang>.json）と音声で、その言語の話速を測る
+python3 .claude/tools/produce-video/produce-video.py calibrate <path> --lang en --audio <音声ディレクトリ>
+
 # 自分の担当分だけ（producer の自己検査）
 python3 .claude/tools/produce-video/produce-video.py check <path> --stage script   # C1-C5
 python3 .claude/tools/produce-video/produce-video.py check <path> --stage assets   # + C6-C9,C11,C12
 python3 .claude/tools/produce-video/produce-video.py check <path> --stage thumb    # + C10
+python3 .claude/tools/produce-video/produce-video.py check <path> --stage i18n     # C19-C20（localizer の自己検査）
 ```
 
 `--stage` があるのは、**まだ存在しない下流の成果物を「無い」と怒られずに自己検査するため**である。
@@ -79,6 +83,8 @@ RMS 誤差は 0.49→0.47 秒でほぼ改善しない。**1変数モデルのま
 | C16 | `channel/style.md` が `image.<key>` として**宣言した**正規文字列に全素材が一致するか（宣言しないキーは自由） |
 | C17 | 台本が参照する `F-nnn` が `research.md` に実在するか。未参照の事実は WARN |
 | C18 | カメラの角度が1種類に偏っていないか（WARN。**味気なさの検出**） |
+| C19 | `i18n/<lang>.json` の構造と**台本との1対1**（欠けた訳・孤児の訳・必須キー・タイトル3案） |
+| C20 | 訳文がその言語の文字予算（尺 × `speech_rate`）に収まるか。**マスターのタイムラインは固定なので超過だけが ERROR**（窓に音が入らない）。短い側は WARN（余りは間になる）。許容幅（±10%）の権威は C5 と同じくここ |
 
 **面白さは機械に作れないが、「同じものの繰り返し」は撃てる。** C18 はそれで、
 実運用で judge が「9コマ中8コマが同じ構図」と手で数えた指摘を機械に降ろしたものである。
