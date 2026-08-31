@@ -1,11 +1,11 @@
 ---
-id: ADR-0014
+id: ADR-0017
 title: 面白さは comedian が発散し人間が収束させる。台本より前に構成のゲートを置く
 status: accepted
 date: 2026-08-31
 ---
 
-# ADR-0014 面白さは comedian が発散し人間が収束させる。台本より前に構成のゲートを置く
+# ADR-0017 面白さは comedian が発散し人間が収束させる。台本より前に構成のゲートを置く
 
 ## Context
 

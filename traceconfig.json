@@ -1,0 +1,23 @@
+{
+  "_comment": "claude-harness 自身の docs 用（ADR しか持たない）。このリポジトリはアプリのコードを持たないので source / tests / layering / contract / schema を置かない（該当の検査は自然に飛ぶ）。目的は ADR の採番衝突（C12）を機械に撃たせること、および --next adr を使えるようにすること。",
+  "id_patterns": {
+    "goal": "\\bGOAL-\\d{2}\\b",
+    "uc": "\\bUC-\\d{3}\\b",
+    "req": "\\bREQ-\\d{3}\\b",
+    "br": "\\bBR-\\d{3}\\b",
+    "nfr": "\\bNFR-\\d{3}\\b",
+    "adr": "\\bADR-\\d{4}\\b"
+  },
+  "covers_pattern": "@covers\\s+(REQ-\\d{3})(?:#([\\w-]+))?",
+  "implements_pattern": "@implements\\s+((?:REQ|BR|UC)-\\d{3}(?:\\s*[,/]\\s*(?:REQ|BR|UC)-\\d{3})*)",
+  "docs": {
+    "goals_dir": "docs/goals",
+    "goals_backlog": "docs/goals-backlog.md",
+    "rules_dir": "docs/rules",
+    "nfr_dir": "docs/nfr",
+    "adr_dir": "docs/adr",
+    "verification_global": "docs/verification/GLOBAL.md",
+    "shared": "docs/_shared/components.yaml"
+  },
+  "baseline_file": ".trace-baseline.json"
+}

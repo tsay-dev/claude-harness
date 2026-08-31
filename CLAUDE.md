@@ -140,7 +140,8 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
    .claude/tools/cursor-sync/sync.sh .claude .cursor
    .claude/tools/grok-sync/sync.sh .claude .grok
    ```
-5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository). This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
+5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository).
+   **Take the number from `node .claude/tools/trace-check/trace-check.mjs --next adr`, never by eyeballing `ls docs/adr`.** Reading the directory and adding one is exactly what collides when two sessions write an ADR at the same time — and they do. `--next` reserves the number as it hands it out; `--only C12` catches a collision that slipped through. This repository carries its own `traceconfig.json` (docs only, no source or tests) so both work here. This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
 6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
 
 ---
