@@ -2,6 +2,7 @@
 id: GOAL-00
 actor: ACT-00
 origin: KPI-00
+domain: <ドメイン>     # optional: required once 00-vision.md names more than one domain. The allowed values are that closed set (R-1009)
 status: draft          # draft | active | withdrawn (active = approved by a human)
 ---
 

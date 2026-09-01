@@ -34,7 +34,7 @@ paths:
 | `00-vision.md` | the problem, the audience, measurable success metrics (KPI), out of scope | a feature list, screens, technology choices |
 | `01-glossary.md` | term, one-sentence definition, code identifier, forbidden synonyms | class design, table definitions |
 | `02-actors.md` | the closed set of actors (`ACT-nn`, system actors included) | the UCs that realize a goal (R-103) |
-| `GOAL.md` | one sentence in the actor's words, `actor`, `origin` (KPI) | the list of its UCs |
+| `GOAL.md` | one sentence in the actor's words, `actor`, `origin` (KPI), `domain` (R-1009) | the list of its UCs |
 | `UC.md` | scenario, the state × event table, pre/post conditions, BR **references** | the content of a BR, the content of a REQ, a list of derived REQs |
 | `REQ-nnn.md` | one EARS sentence, frontmatter (`pattern`, `uc`, `br`, `status`), the verification policy | implementation means, UI detail, the content of a test case |
 | `BR-nnn.md` | the rule's existence, its intent, `enforced_at` | its referrers, a value that could be machine-readable (R-102) |
@@ -91,6 +91,7 @@ paths:
 - **R-1006 (MUST)** The vertical series GOAL → UC → REQ is a tree (pairwise disjoint), so the file system matches the tree: `docs/goals/<GOAL-nn-slug>/<UC-nnn-slug>/` holds `UC.md`, its `REQ-*.md`, and its `contract.yaml`; `GOAL.md` sits directly in the goal directory. The horizontal spaces (BR / NFR / ADR / glossary / `_shared`) are not disjoint and stay central under `docs/`. Mixed layouts (flat and nested) are forbidden.
 - **R-1007 (MUST)** Membership's SSOT is the frontmatter (`goal:` on a UC, `uc:` on a REQ, `x-uc:` on a contract); the directory is only placement. Directory-prefix ↔ `id` agreement, the presence of the node file, and a REQ sitting directly under its own `uc:` are checked by `trace-check` C9. To reorganize, update the frontmatter first and move files by following C9's violations.
 - **R-1008 (SHOULD)** A goal not yet started lives in `docs/goals-backlog.md` and is promoted to a directory when work begins (never create an empty directory).
+- **R-1009 (MUST)** When the vision names more than one domain, every goal declares which one it belongs to: the frontmatter `domain:` in `GOAL.md`, the `- **ドメイン**:` line in `goals-backlog.md`. **The closed set of allowed values is `00-vision.md`'s** (R-101) — a value outside it is a send-back. A goal that spans the domains takes the value the vision gives that case, never an ad-hoc one. The domain is a classification and is therefore never baked into an ID (R-205); its SSOT is the frontmatter (R-1007).
 
 ### The reading contract per task (what a Task input passes)
 

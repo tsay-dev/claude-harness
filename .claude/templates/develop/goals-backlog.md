@@ -10,6 +10,7 @@ status: draft          # draft | living
 ### GOAL-00
 - **actor**: ACT-00
 - **由来**: KPI-00
+- **ドメイン**: <ドメイン>   <!-- optional: same condition and same closed value set as GOAL.md's domain: (R-1009) -->
 - **status**: planned
 
 > <アクターの言葉で 1 文。「〜したい」>
