@@ -110,6 +110,7 @@ description: <one sentence that makes the launch condition clear>
 tools: Read, Write, ...      # the minimum needed. Lean read-only for oracles
 model: opus | inherit        # the default hint for Claude Code. Follow the assignment rule below.
                              # Normalized to inherit in the Cursor projection, where the choice at launch is authoritative
+                             # (slice-reviewer: Cursor must pick the fable family — ADR-0020)
 ---
 ```
 
@@ -120,10 +121,11 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 
 | Zone | Who | Claude Code `model:` | Cursor (at Task launch) | Why |
 | --- | --- | --- | --- | --- |
-| The judgment zone (machines cannot refute it) | domain-definer / usecase-definer / requirement-definer / db-designer / contract-author / test-designer / adr-writer / slice-reviewer, and every oracle, attacker, and judge | `opus` | the orchestrator picks a top-tier model to match the task | Everything downstream rests on these artifacts. Degradation here produces "correctly wrong" implementations |
+| The judgment zone (machines cannot refute it) | domain-definer / usecase-definer / requirement-definer / db-designer / contract-author / test-designer / adr-writer, and every oracle, attacker, and judge other than `slice-reviewer` | `opus` | the orchestrator picks a top-tier model to match the task | Everything downstream rests on these artifacts. Degradation here produces "correctly wrong" implementations |
+| The completion-gate reviewer | `slice-reviewer` | `opus` | the **fable** family when offered; inherit forbidden; if that family is missing, stop and tell the human (ADR-0020) | A false finding becomes a wrong implementation; an empty list is the definition of done |
 | The deterministic zone (a machine oracle exists) | the 3 implementation producers / skeleton-runner / committer | `inherit` | lighter, or `inherit`, is fine | Tests and builds decide pass/fail, so the model makes little difference to final quality |
 
-> **Never hardcode a specific model slug (`sonnet`, or a Cursor-specific name) into the harness.** The shared harness would then constrain the host's budget and model catalog (§0). In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default.
+> **Never hardcode a versioned catalog id (a Cursor kebab-case slug, and the like) into the harness.** The shared harness would then constrain the host's budget and model catalog (§0). A family name used as a launch-time selection criterion (`fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch. In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default.
 
 ---
 
@@ -152,7 +154,7 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | --- | --- |
 | A rules leaf | Is `paths:` present? Is the glob valid? Is it one concern? |
 | A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
-| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no hardcoded `sonnet`)? |
+| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no versioned catalog id; slice-reviewer's Cursor pick is the fable family, ADR-0020)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
 | grok-sync | flatten `agents/**/*.md` → `.grok/agents/<name>.md` by frontmatter `name:`, drop `model:`, the GENERATED marker; do not copy skills or rules |
 | templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |

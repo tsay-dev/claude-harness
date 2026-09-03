@@ -105,7 +105,7 @@ Only after the contract is `fixed`.
    - The FE runs **sequentially**: after the contract is `fixed`, `frontend-ui-implementer` (🙋 human eyeball; no UI Red tests are passed) → after approval, `frontend-logic-implementer` (🤖; no FE Red tests are passed)
    - 4a-1 **may run concurrently** with test-designer. BE **may run concurrently** with the FE ui step (as long as write targets do not intersect)
 3. No dedicated integration phase (same as the mainline; the machine oracle is BE, and the FE gap is covered by the human eyeball plus `slice-reviewer`).
-4. Once FE and BE implementations are both in (and if any verification was skipped for exclusivity, after a consolidated run has settled red/green of the skipped UC IDs + blast radius — mainline develop skill §4 test-run granularity), launch **`slice-reviewer`**. Iterate to zero defects (circuit breaker in §6). **No attacker is launched.**
+4. Once FE and BE implementations are both in (and if any verification was skipped for exclusivity, after a consolidated run has settled red/green of the skipped UC IDs + blast radius — mainline develop skill §4 test-run granularity), launch **`slice-reviewer`** (Cursor model: the fable family; inherit forbidden — mainline develop skill §5 / ADR-0020). Iterate to zero defects (circuit breaker in §6). **No attacker is launched.**
 5. If you find yourself wanting to change the contract, stop implementation and return to Phase3. If the change breaks eligibility, escalate to the mainline.
 
 ### Verification and completion
