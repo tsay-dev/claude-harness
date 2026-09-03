@@ -22,7 +22,7 @@ You may vary the steps and the granularity, but never these.
 - **SSOT first (the upstream-first rule, R-801)**: code is never the source of truth. When implementation exposes a flaw in the spec, do not promote the code to truth — update the SSOT, then re-derive (rework routing is in §4).
 - **Requirements**: one EARS sentence per `REQ-nnn.md`, implementation-independent and falsifiable, at a granularity that answers "what observation would prove this wrong?" — derived from a use case's state × event table, which has **no empty cell**. Cases are not enumerated in docs; `test-designer` declares partition classes and the tests exhaust them (the conventions are the rules leaf `.claude/rules/develop/docs.md`, delivered to whoever writes under `docs/`).
 - **Three kinds of oracle** (all distinct from the producer):
-  - **Machine oracle** — artifacts refutable deterministically by tests, types, lint, or schema validation (contracts, pure functions, logic, tests), plus **`spec-lint`** (format and lifecycle of the docs) and **`trace-check`** (traceability C1–C12: coverage, `@covers` / `@implements` resolution, placement, dead rules, numbering). Loop autonomously to green with no human involved.
+  - **Machine oracle** — artifacts refutable deterministically by tests, types, lint, or schema validation (contracts, pure functions, logic, tests), plus **`spec-lint`** (format and lifecycle of the docs) and **`trace-check`** (traceability C1–C14: coverage, `@covers` / `@implements` resolution, placement, dead rules, numbering). Loop autonomously to green with no human involved.
   - **AI judgment oracle** — judgments that determinism cannot refute but that need no human either, such as referential consistency and adversarial verification of an implementation (structure-oracle / slice-reviewer). Must carry a round limit and an escalation condition to the human. Live attacks (`/attack`) are not part of this skill's completion criteria.
   - **Human oracle** — artifacts neither machine nor AI can conclusively refute (the SSOT, UI, DB design). Marked `active` (docs) or settled (UI / DB) by human confirmation.
 - **Definition of done**: not "all tests pass" but an empty defect list from the independent adversarial verifier (`slice-reviewer`) **and zero new `trace-check` violations** (the merge condition, R-803). Green tests are a precondition, not the finish line.
@@ -376,7 +376,7 @@ Call it "complete" only when all of the following hold.
 - [ ] Phase3 structural consistency and contract freeze are done (zero inconsistencies)
 - [ ] For every slice: the UI has been eyeballed by a human, the FE logic conforms to the contract, the BE logic is green (consistent with the requirements after integration; FE unit tests are not required for now)
 - [ ] For every slice, `slice-reviewer`'s defect list is empty
-- [ ] `spec-lint validate` passes and `trace-check` reports zero new violations (every active REQ covered, every declared class tested, no test outside a policy, no orphan reference, the baseline no larger than before)
+- [ ] `spec-lint validate` passes and `trace-check` reports zero new violations (every active REQ covered and `@implements`'d, every declared class tested, no test outside a policy, no orphan reference, the baseline no larger than before)
 - [ ] Every SSOT change that arose has been reworked upstream-first and its affected slices re-verified
 - [ ] Every slice's `phase:` matches reality and reads `完了`
 

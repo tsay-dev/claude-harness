@@ -35,6 +35,8 @@
 //    C12  同一 ID が複数箇所で定義されていないか（採番衝突）
 //    C13  enforced_at に database を含む BR が、スキーマ源（traceconfig の schema.files）から @implements されているか
 //         （DB 制約の存在を機械で担保する。制約が本当に規則を強制するかは structure-oracle の判断に残る）
+//    C14  すべての active な REQ / BR がソースまたはスキーマ源の 1 ユニット以上に @implements されているか
+//         （C5 の逆方向。孤児参照ではなく「注釈忘れ」。source 未設定の docs-only ホストでは判定しない）
 //
 //  使い方:
 //    node trace-check.mjs [--root .] [--config traceconfig.json]      検査（baseline との差分で判定）
@@ -537,6 +539,18 @@ function runChecks(cfg) {
 			if (!schemaImplements[fm.id])
 				failures.push(`[C13] ${fm.id} は enforced_at に database を含むが、スキーマ源（${(cfg.schema.files || cfg.schema.dirs || []).join(", ")}）から @implements されていない（制約のコメントに @implements ${fm.id} を書く）`);
 		}
+	}
+
+	//  C14: active な REQ / BR は実装側から辿れる。source 未設定（docs-only）なら判定しない。
+	//  注釈の置き場はユニット（C14 は 1 件以上の存在だけを見る。粒度は comments.md / reviewer）
+	const hasSource = Boolean(cfg.source && (cfg.source.dirs || []).length);
+	if (hasSource) {
+		for (const req of activeReqs)
+			if (!implementsMap[req])
+				failures.push(`[C14] ${req} を @implements する実装が存在しない（active な要件はソースまたはスキーマ源のユニットに注釈すること）`);
+		for (const br of Object.keys(brs).sort())
+			if (brs[br] === "active" && !implementsMap[br])
+				failures.push(`[C14] ${br} を @implements する実装が存在しない（active な規則はソースまたはスキーマ源のユニットに注釈すること）`);
 	}
 
 	//  C12: 重複 ID（採番衝突）

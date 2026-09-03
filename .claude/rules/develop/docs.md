@@ -7,7 +7,7 @@ paths:
 # 📚 SDD / SSOT conventions for docs (the rules with IDs)
 
 > **Scope: every file under `docs/` on every platform and every framework** (vision, glossary, actors, GOAL / UC / REQ, BR, NFR, ADR, verification, the boundary contracts). Cite these rules by ID in review findings and send-backs (`R-101`, not "the single-parent thing").
-> **The format of each artifact is authoritative in `.claude/templates/develop/`**, and the machine checks are `.claude/tools/spec-lint` (format, lifecycle) and `.claude/tools/trace-check` (traceability C1–C12). This leaf holds only what neither a template nor a tool can hold: the principles, and who may write what.
+> **The format of each artifact is authoritative in `.claude/templates/develop/`**, and the machine checks are `.claude/tools/spec-lint` (format, lifecycle) and `.claude/tools/trace-check` (traceability C1–C14). This leaf holds only what neither a template nor a tool can hold: the principles, and who may write what.
 
 ---
 
@@ -65,10 +65,11 @@ paths:
 
 ## 7. Connecting to code
 
-- **R-701 (MUST)** Implementation references its upstream IDs with `@implements REQ-nnn / BR-nnn / UC-nnn` annotations (reference only, no content). Where to put them is in `comments.md`.
+- **R-701 (MUST)** Implementation references its upstream IDs with `@implements REQ-nnn / BR-nnn / UC-nnn` annotations (reference only, no content). Where to put them is in `comments.md`. An ID that does not exist fails C5.
 - **R-702 (MUST)** Layer dependency direction is enforced by lint / `trace-check` C6 (`layering` in `traceconfig.json`), never by prose alone.
 - **R-703 (MUST)** Agreement between the implementation's error codes and the contract vocabulary (`docs/_shared/components.yaml` `errorCodes`) is machine-checked (C7) when the host configures `contract` in `traceconfig.json`.
 - **R-704 (MUST)** The DB design's SSOT is the host's native schema source (a migration, `schema.prisma`, a model file — declared in `traceconfig.json` `schema`), never a document (R-102 applied). A BR whose `enforced_at` names the database is realized as a constraint annotated `@implements BR-nnn` in that source (C13). When a rule can be enforced at several points, the SSOT of the guarantee is decided by asymmetry — removing which point breaks correctness — and recorded in an ADR.
+- **R-705 (MUST)** Every `active` REQ and every `active` BR is annotated from implementation with `@implements` (C14; the reverse of C5). The annotation lives on the realizing unit (`comments.md`), in `source` or the schema source. A docs-only host (no `source` in `traceconfig.json`) is not subject to C14. `@implements UC-nnn` on the use-case entry remains craft, not this check. C14 sees the annotation's existence, not whether the unit realizes the sentence (R-901).
 
 ## 8. Change process
 

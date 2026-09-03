@@ -5,7 +5,7 @@ the docs SSOT (GOAL → UC → REQ, BR) and the code (tests, implementation): co
 layering, and the contract vocabulary. It is the Node port of sdd-kit's `trace_check.py` (why the port:
 `docs/adr/ADR-0003`).
 
-- **What it verifies**: the 13 checks below. **Format and lifecycle** (frontmatter, sections, status
+- **What it verifies**: the 14 checks below. **Format and lifecycle** (frontmatter, sections, status
   vocabularies, the contract's structure) are `../spec-lint/`'s job; the two tools do not overlap
 - **What it reads**: `traceconfig.json` at the host project root (seeded once from
   `.claude/templates/develop/traceconfig.json`; the host maintains `source` / `tests` / `schema` / `layering` / `contract`).
@@ -30,7 +30,7 @@ node trace-check.mjs --only C9,C12                            # judge only these
 
 Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. Node only.
 
-## The 13 checks
+## The 14 checks
 
 | # | Fails when | Rule |
 | --- | --- | --- |
@@ -47,8 +47,9 @@ Exit codes: `0` = no new violation / `1` = new violation / `2` = usage error. No
 | C11 | a test names no class, or an undeclared one (the upper bound on generated tests); and, when `tests.test_pattern` is configured, a test function that carries no `@covers` at all — an unannotated test is invisible to C10 / C11 otherwise. A test carrying `tests.exempt_pattern` (an explicit `// 仕様外:` marker) is counted as exempt, not missing. A test's identity is **file + name** (`test_pattern` must capture the name), so the ledger never depends on line numbers. Where the annotation sits is **declared**, not guessed: `tests.covers_placement: before` (default — the doc comment right above the test mark) or `after` (the mark's line and the first lines of the body); trace-check looks only in that window, and an `@covers` outside every window is reported as belonging to no test | R-1102 / R-1103 |
 | C12 | the same ID is defined in more than one file (a numbering collision) | R-204 |
 | C13 | a BR whose `enforced_at` names the database has no `@implements BR-nnn` in the schema source (`schema.files` / `schema.dirs`; only when configured) | R-704 |
+| C14 | an `active` REQ or `active` BR has no `@implements` in `source` or the schema source (the reverse of C5; only when `source` is configured). UC-level `@implements UC-nnn` is craft (`comments.md`), not this check | R-705 |
 
-Only `active` docs are subject to C1 / C2 / C8 / C10 — a `draft` REQ demands nothing yet, and a `withdrawn`
+Only `active` docs are subject to C1 / C2 / C8 / C10 / C14 — a `draft` REQ or BR demands nothing yet, and a `withdrawn`
 one demands nothing any more. C11 applies to every test regardless.
 
 ## The baseline ratchet (adopting it on an existing project)
@@ -68,15 +69,17 @@ keeps the line numbers for navigation).
 Only "no worse than today" is enforced at first; repayment is planned. **The baseline only ever shrinks**
 (R-804) — a review sends back any growth. Whether `.trace-baseline.json` is monotonically decreasing is the
 project's health indicator. The one sanctioned growth is the moment a check first applies to pre-existing material
-(a migration turning REQs `active`, so C1 / C10 see partitions the existing tests never exhausted): it is recorded
+(a migration turning REQs `active`, so C1 / C10 / C14 see partitions and implementations the existing tests and annotations never exhausted): it is recorded
 once with `--update-baseline`, named with its count in that phase's report, and never repeated (`/docs-migrate` Phase 6).
 
 ## What green does and does not guarantee
 
-When the tests and these 13 checks are all green, the following holds mechanically: every active GOAL has a UC
+When the tests and these 14 checks are all green, the following holds mechanically: every active GOAL has a UC
 and every active REQ a test; every declared partition class has a test **and no test exists outside the
-policy**; every ID referenced from code and tests exists; no rule is dead; no ID is defined twice; placement
+policy**; every ID referenced from code and tests exists; every active REQ and every active BR is annotated
+from source or schema (`@implements`); no rule is dead; no ID is defined twice; placement
 agrees with the frontmatter; the dependency direction and the contract vocabulary agree with the implementation; every rule enforced at the database is annotated on a constraint in the schema source.
 
 What remains for review (R-901): whether the partition exhausts the input space, whether an assertion verifies
-the meaning of the EARS sentence, whether the EARS sentence itself is right, and whether a schema constraint annotated `@implements BR-nnn` really enforces that rule (C13 sees the annotation, not the semantics).
+the meaning of the EARS sentence, whether the EARS sentence itself is right, whether the annotated unit
+actually realizes that sentence (C14 sees the annotation, not the semantics), and whether a schema constraint annotated `@implements BR-nnn` really enforces that rule (C13 sees the annotation, not the semantics).

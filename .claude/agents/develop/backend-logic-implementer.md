@@ -21,7 +21,7 @@ You are the **backend logic producer** (a subagent in a context independent of t
 
 ## Craft (your expertise)
 
-Following the contract's request / response, implement the backend's request handling and **pure functions**. After implementing, check against every REQ sentence and BR for consistency, and annotate the unit that realizes each with `@implements REQ-nnn` / `@implements BR-nnn` (`@implements UC-nnn` on the use-case entry) — the ID only, as the comments leaf prescribes. Run `node .claude/tools/trace-check/trace-check.mjs --only C5,C6,C7` before returning; a violation there is yours to fix.
+Following the contract's request / response, implement the backend's request handling and **pure functions**. After implementing, check against every REQ sentence and BR for consistency, and annotate the unit that realizes each with `@implements REQ-nnn` / `@implements BR-nnn` (`@implements UC-nnn` on the use-case entry) — the ID only, as the comments leaf prescribes. Run `node .claude/tools/trace-check/trace-check.mjs --only C5,C6,C7,C14` before returning; a violation there is yours to fix.
 
 With no human involved, drive the Red tests autonomously through **Red → Green → Refactor** until they are green. Green = the machine oracle passed (but green is a precondition, not the definition of done).
 

@@ -159,7 +159,7 @@ claude-harness/
       │
       └── tools/                            # 🔧 実行アセット（バリデータ・生成器）
            ├── spec-lint/                         # docs SSOT の書式・ライフサイクル検証（producer が直接叩く。baseline ラチェット・旧 OpenAPI 契約の convert）
-           ├── trace-check/                       # トレーサビリティ検査 C1–C13（被覆・@covers/@implements・配置・baseline ラチェット・--next 採番・--index）
+           ├── trace-check/                       # トレーサビリティ検査 C1–C14（被覆・@covers/@implements・配置・baseline ラチェット・--next 採番・--index）
            ├── gate-hook/                          # develop skill §2 実装着手ゲートの機械強制（PreToolUse フック・任意有効化）
            ├── cursor-sync/                        # .claude の3木(rules/skills/agents) → Cursor の .cursor/ へ射影
            └── grok-sync/                          # .claude/agents を name: で flatten → Grok Build の .grok/agents/ へ射影
@@ -206,7 +206,7 @@ traceconfig.json                   # trace-check の設定（ホスト直下。s
 ```
 
 - **人間ゲートの成果物**（vision / glossary / actors / GOAL / UC / REQ / BR / NFR）は `draft → active`（承認）`→ withdrawn`、**機械ループの成果物**（contract）は `draft → fixed`。工程は各 `UC.md` の `phase:` が持ち、台帳ファイルは持たない（`trace-check --index` が生成）。
-- **テストは `@covers REQ-045#class`、実装は `@implements REQ-045 / BR-003 / UC-012`** で上流を指す。`trace-check` が「宣言した全クラスにテストがあるか（C10）」「方針にないテストが無いか（C11）」「DB で強制する規則にスキーマ側の制約があるか（C13）」「孤児参照・死んだ規則・配置ずれ・採番衝突が無いか」を機械判定し、既存プロジェクトは baseline ラチェットで漸進導入する。
+- **テストは `@covers REQ-045#class`、実装は `@implements REQ-045 / BR-003 / UC-012`** で上流を指す。`trace-check` が「宣言した全クラスにテストがあるか（C10）」「方針にないテストが無いか（C11）」「active な REQ / BR に実装の `@implements` があるか（C14）」「DB で強制する規則にスキーマ側の制約があるか（C13）」「孤児参照・死んだ規則・配置ずれ・採番衝突が無いか」を機械判定し、既存プロジェクトは baseline ラチェットで漸進導入する。
 - 規約の正文（R-101 単一親制約 … R-1206）は `rules/develop/docs.md` が持ち、`docs/**` を触る producer にだけ paths ゲートで届く。書式はテンプレート、craft は各 agent body（三者を複製しない）。
 
 

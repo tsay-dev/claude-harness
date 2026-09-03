@@ -17,7 +17,7 @@ the docs SSOT (the singletons, GOAL / UC / REQ, BR / NFR / ADR, the boundary con
   has decided, in an ADR, to contract explicitly; the default under R-1204 is that such a boundary is not an operation)
   / `direction`
 - **Traceability is not its job**: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter
-  (C9), and numbering collisions are `../trace-check/`'s 13 checks
+  (C9), and numbering collisions are `../trace-check/`'s 14 checks
 - **Scope of contract verification**: a contract is **not OpenAPI** — it is the harness's own boundary-contract
   format (why: `docs/adr/ADR-0001`). This tool parses it with a hand-written parser for a deliberately narrow
   YAML subset (why: `docs/adr/ADR-0002`) and checks structure: `transport` / `direction` / `owned` validity,
