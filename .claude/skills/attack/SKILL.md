@@ -45,7 +45,7 @@ settle scope and budget
 - **The attack budget**
 - On a re-attack round: the previous defect/violation list plus the change scope
 
-In Cursor, treat the attacker as a judgment zone and pick a top-tier model from the candidates the runtime offers at Task launch (do not leave it to the parent's `inherit`; do not hardcode a slug — see develop skill §5). In Grok Build, spawn with `task` / `spawn_subagent` using the agent `name:` (`slice-attacker` / `system-attacker`); the child inherits the parent model (see develop skill §5).
+In Cursor, treat the attacker as a judgment zone and pick a top-tier model from the candidates the runtime offers at Task launch (do not leave it to the parent's `inherit`; do not hardcode a slug — see develop skill §5). In Grok Build, spawn with `task` / `spawn_subagent` using the agent `name:` (`slice-attacker` / `system-attacker`); the child inherits the parent model (see develop skill §5). In Codex, spawn with `spawn_agent` using that same `name:` (lite pin unless the name is in `models.json` `latest_agents` — see develop skill §5).
 
 ### On receipt
 

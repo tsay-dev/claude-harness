@@ -6,7 +6,7 @@ description: 企画から動画の制作定義一式（台本・素材プロン�
 # 🎬 produce-video — 動画制作定義の指揮者（orchestrator）
 
 > **このスキルを起動した時点で、あなた（メインエージェント）は中立の orchestrator である。**
-> あなたは書かない・判定しない。**専門サブエージェント（`.claude/agents/produce-video/`）を Task ツール（Grok Build では `task` / `spawn_subagent`、`subagent_type` は `produce-video-script-writer` / `produce-video-asset-generator` / `produce-video-publisher` / `produce-video-localizer` / `produce-video-localization-judge` / `produce-video-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。
+> あなたは書かない・判定しない。**専門サブエージェント（`.claude/agents/produce-video/`）を Task ツール（Grok Build では `task` / `spawn_subagent`、Codex では `spawn_agent`。識別子は `produce-video-script-writer` / `produce-video-asset-generator` / `produce-video-publisher` / `produce-video-localizer` / `produce-video-localization-judge` / `produce-video-judge`）で起動し、成果物を突き合わせて引き渡す指揮者**に徹する。
 > 型（なぜ・何を・書式）の SSOT は rules（`.claude/rules/produce-video/`）。**どの葉に何が書いてあるかは本 SKILL の関心ではない**——葉を読むのは、それを渡された agent である。
 > 各 agent の craft（構成・言い回し・画作り）は agent body が SSOT。本 SKILL は**どう回すか**だけを持ち、rules も agent body も複製しない（**参照は rules → skill の一方通行**）。
 

@@ -3,10 +3,11 @@
 # init.sh — claude-harness を対象プロジェクトへ導入 / 更新する
 #
 # 使い方:
-#   導入:  ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok]
+#   導入:  ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok] [--codex]
 #   更新:  ./init.sh update [/path/to/your-project] [--tag vX.Y.Z] [--no-commit]
 #   Cursor: ./init.sh cursor [/path/to/your-project]   # .claude の3木 → .cursor/ を再生成
 #   Grok:   ./init.sh grok [/path/to/your-project]     # .claude/agents → .grok/agents を再生成
+#   Codex:  ./init.sh codex [/path/to/your-project]    # skills → .agents/skills、agents → .codex/agents/*.toml
 #
 # install が行うこと:
 #   1. 対象プロジェクトに .claude/（rules・skills）を配置する
@@ -46,6 +47,14 @@
 #   Grok は agents 直下の *.md しか見ない（ネストした agents/develop/foo.md は乗らない）。
 #   skills は .claude/skills を直接読むので写さない。rules は全文ロードされるので写さない。
 #   install に --grok を付けると配置直後に自動生成する。update 後は本アクションで再生成する。
+#
+# codex が行うこと（OpenAI Codex 併用者向けの射影）:
+#   対象の .claude/skills を Codex が読む .agents/skills/ へ複製し、
+#   .claude/agents を .codex/agents/<name>.toml へ flatten する。
+#   Codex は .claude/skills もネストした .claude/agents も直接は読まない。
+#   rules は paths ゲート相当が無いので写さない（常駐ゼロを壊す）。
+#   ルーター用の AGENTS.md は設置しない（プロジェクト固有の事実が要るなら各プロジェクトが自分で用意する）。
+#   install に --codex を付けると配置直後に自動生成する。update 後は本アクションで再生成する。
 
 set -euo pipefail
 
@@ -58,6 +67,7 @@ FORCE="false"
 NO_COMMIT="false"
 CURSOR="false"
 GROK="false"
+CODEX="false"
 TARGET_DIR=""
 TAG=""
 
@@ -69,16 +79,18 @@ usage()
 {
   cat >&2 <<'EOF'
 usage:
-  install: ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok]
+  install: ./init.sh [install] /path/to/your-project [--mode submodule|symlink|copy] [--tag vX.Y.Z] [--force] [--cursor] [--grok] [--codex]
   update:  ./init.sh update [/path/to/your-project] [--tag vX.Y.Z] [--no-commit]
   cursor:  ./init.sh cursor [/path/to/your-project]
   grok:    ./init.sh grok [/path/to/your-project]
+  codex:   ./init.sh codex [/path/to/your-project]
 
   --mode <m>    配置方式（既定: submodule）。submodule / symlink / copy。install のみ。
   --tag <t>     固定するリリースタグ（既定: 最新の v* タグ）。submodule 配置のみ。
   --force       対象の既存 .claude/ を置き換える（既定は中断）。install のみ。
   --cursor      配置後に .cursor（Cursor 用射影）も生成。install のみ。
   --grok        配置後に .grok/agents（Grok Build 用射影）も生成。install のみ。
+  --codex       配置後に .agents/skills と .codex/agents（Codex 用射影）も生成。install のみ。
   --no-commit   更新のみ行いコミットしない。update のみ。
   -h, --help    このヘルプを表示。
 
@@ -86,6 +98,7 @@ usage:
     harness にはリリースタグ（例: v0.1.0）が必要。
     cursor は対象の .claude を .cursor へ射影する（対象省略時はカレント repo）。
     grok は対象の .claude/agents を .grok/agents へ flatten する（対象省略時はカレント repo）。
+    codex は対象の .claude を .agents/skills と .codex/agents へ射影する（対象省略時はカレント repo）。
 EOF
 }
 
@@ -105,7 +118,7 @@ checkout_tag()
 # --- アクション判定（先頭の位置引数が install/update ならそれを採用） ---
 if [[ $# -gt 0 ]]; then
   case "$1" in
-    install|update|cursor|grok) ACTION="$1"; shift ;;
+    install|update|cursor|grok|codex) ACTION="$1"; shift ;;
   esac
 fi
 
@@ -119,6 +132,7 @@ while [[ $# -gt 0 ]]; do
     --force)     FORCE="true"; shift ;;
     --cursor)    CURSOR="true"; shift ;;
     --grok)      GROK="true"; shift ;;
+    --codex)     CODEX="true"; shift ;;
     --no-commit) NO_COMMIT="true"; shift ;;
     -h|--help)   usage; exit 0 ;;
     --) shift; break ;;
@@ -231,6 +245,29 @@ do_grok()
   log "note: skills は .claude/skills を直接読む。rules は射影しない。"
 }
 
+# =============================== codex ================================
+# 対象の .claude/skills を .agents/skills へ、.claude/agents を .codex/agents/<name>.toml へ射影する。
+do_codex()
+{
+  if [[ -z "${TARGET_DIR}" ]]; then
+    TARGET_DIR="$(git rev-parse --show-toplevel 2>/dev/null || echo "${PWD}")"
+  fi
+  [[ -d "${TARGET_DIR}" ]] || die "target directory not found: ${TARGET_DIR}"
+  TARGET_DIR="$(cd "${TARGET_DIR}" && pwd)"
+
+  local claude="${TARGET_DIR}/.claude"
+  [[ -d "${claude}" ]] \
+    || die "no .claude at target; install the harness first: ${claude}"
+
+  local gen="${SRC_DIR}/.claude/tools/codex-sync/sync.sh"
+  [[ -x "${gen}" ]] || gen="bash ${SRC_DIR}/.claude/tools/codex-sync/sync.sh"
+
+  ${gen} "${claude}" "${TARGET_DIR}"
+  log "codex projection written: ${TARGET_DIR}/.agents/skills + ${TARGET_DIR}/.codex/agents"
+  log "note: skills=複製, agents=name: flatten → .toml。rules は射影しない。"
+  log "      ルーター用 AGENTS.md は置かない。案件固有の事実はホストが自分で書く。"
+}
+
 # =============================== install ==============================
 do_install()
 {
@@ -319,12 +356,15 @@ do_install()
       ;;
   esac
 
-  # --cursor / --grok 指定時は配置直後に各ランタイムの射影を生成する
+  # --cursor / --grok / --codex 指定時は配置直後に各ランタイムの射影を生成する
   if [[ "${CURSOR}" == "true" ]]; then
     do_cursor
   fi
   if [[ "${GROK}" == "true" ]]; then
     do_grok
+  fi
+  if [[ "${CODEX}" == "true" ]]; then
+    do_codex
   fi
 
   log "done."
@@ -348,4 +388,5 @@ case "${ACTION}" in
   install) do_install ;;
   cursor)  do_cursor ;;
   grok)    do_grok ;;
+  codex)   do_codex ;;
 esac

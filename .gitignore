@@ -19,6 +19,10 @@ Icon?
 # Grok Build 射影（生成物。./init.sh grok で再生成する。config.toml 等は対象外）
 .grok/agents/
 
+# Codex 射影（生成物。./init.sh codex で再生成する。ホストの .codex/config.toml は対象外）
+.agents/
+.codex/agents/
+
 # trace-check の採番予約とロック（一時状態。番号は使われた時点で台帳から落ちる）
 .trace-reservations.json
 .trace-next.lock

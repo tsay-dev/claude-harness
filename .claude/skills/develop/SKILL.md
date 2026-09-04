@@ -111,7 +111,7 @@ Machine verification (spec-lint, trace-check, the optional gate-hook) may act as
 | Boundary contract (HTTP / SDK / local persistence / deeplink / push / device) | `…/UC-nnn-<slug>/contract.yaml` | `contract-author` (🤖 → `fixed` by the orchestrator) |
 | Shared contract vocabulary (`$ref` targets) | `docs/_shared/components.yaml` | **orchestrator only** (producers return requests as reports) |
 | Project-wide "not verified" ranges | `docs/verification/GLOBAL.md` | `test-designer` |
-| DB design | **the host's native schema source only** (the file migrations are generated from, or the migration directory — declared in the host `CLAUDE.md` or `traceconfig.json` `schema.files`; never a docs draft, R-102). Rule-enforcing constraints carry `@implements BR-nnn` (trace-check C13) | `db-designer` + framework rules |
+| DB design | **the host's native schema source only** (the file migrations are generated from, or the migration directory — declared in the host `CLAUDE.md` / `AGENTS.md` or `traceconfig.json` `schema.files`; never a docs draft, R-102). Rule-enforcing constraints carry `@implements BR-nnn` (trace-check C13) | `db-designer` + framework rules |
 | Design Doc (the How, in present tense; optional) | `docs/design.md` | human (🙋 orchestrator may ghostwrite; reasons go to ADR) |
 | ADR | `docs/adr/ADR-nnnn-<slug>.md` | `adr-writer` |
 | Trace configuration | `traceconfig.json` at the host root | orchestrator seeds it once from the template; the host maintains it |
@@ -226,7 +226,7 @@ The default suite is **the pool the red-green loop may draw from**, not a comman
 | Moment | What you run | What "green" means |
 | --- | --- | --- |
 | A fix / rework round (including the consolidated run after an exclusive-resource skip) | The **reds of this round + their blast radius** | That selection is green |
-| Declaring the slice ready for `committer` (after `slice-reviewer`'s empty list) | The **whole default suite, once**, and **`trace-check` once** | The host `CLAUDE.md`'s default-suite command exits 0 and trace-check reports no new violation |
+| Declaring the slice ready for `committer` (after `slice-reviewer`'s empty list) | The **whole default suite, once**, and **`trace-check` once** | The host `CLAUDE.md` / `AGENTS.md`'s default-suite command exits 0 and trace-check reports no new violation |
 | CI (push, pull request, merge) | The whole default suite, spec-lint, trace-check (and whatever else CI defines) | CI |
 
 **Blast radius is not the single failing test, and not the whole default suite.** It is the tagged suites (`UC-nnn`) that observe the same path as the files this round changed. Suites that share a session, a lock, a stash, a microphone, a write-chain, or a similar cross-UC progression sit in each other's blast radius even when their UC IDs differ. When unsure, widen the selection by neighboring `UC-nnn` tags — never by firing the default-suite command.
@@ -274,6 +274,13 @@ Do not hardcode a versioned catalog id (a Cursor kebab-case slug, and the like) 
 
 **In Grok Build, launch specialists with the subagent spawn tool (`task` / `spawn_subagent`), not the Cursor/Claude Task tool.** After `./init.sh grok`, each persona is flattened to `.grok/agents/<name>.md`; `subagent_type` is that frontmatter `name:` (for example `domain-definer`, `translate-manga-ko-ja-maker`). The projection drops `model:`, so the child inherits the parent — Grok's spawn API has no per-launch model argument. Do not pin a slug in the harness. The Claude Code tool names in agent frontmatter are ignored; the read-only discipline is in each agent body.
 
+**In Codex, launch specialists with `spawn_agent`, not the Cursor/Claude Task tool.** After `./init.sh codex`, each persona is flattened to `.codex/agents/<name>.toml`; the TOML `name` is the role (`domain-definer`, `translate-manga-ko-ja-maker`, …). Catalog IDs are not in this skill — Read `.claude/tools/codex-sync/models.json` (ADR-0022). **The parent session's model is whatever the human started you on** (do not ask them to switch to `latest_model` — ADR-0023). `latest_agents` (currently `slice-reviewer`) get `latest_model` / `latest_effort` in their TOML; every other custom agent gets `lite_model` / `lite_effort`. How you pass the role depends on the schema the runtime exposes at that launch:
+
+- If `spawn_agent` offers `agent_type` (or an equivalent custom-agent selector), pass the `name`.
+- If it only offers `task_name` / `message` / `fork_turns`, pass the `name` as `task_name`, set `fork_turns` to `none` when the schema allows it (a full-history fork inherits the parent role and drops the custom persona), and state in `message` that the child is that named agent whose instructions live in `.codex/agents/<name>.toml`.
+- If `spawn_agent` offers `model` / `reasoning_effort`, pass the same pin the TOML has for that agent (from the JSON). Never invent a catalog id.
+- The TOML pin may be ignored on some Codex surfaces; then the child inherits the parent. `slice-reviewer`'s fable-family requirement (ADR-0020) is Cursor-only.
+
 ### Implementing human gates
 
 **Subagents cannot talk to the user directly.** A 🙋 agent never self-approves: it returns a draft plus the points the human must settle, and stops. The confirmation ritual (AskUserQuestion / plan mode) and the status transition (`active` / `frozen` / `living`, settled UI or DB) are performed by the orchestrator. Never embed a human gate inside a subagent.
@@ -286,7 +293,7 @@ Do not hardcode a versioned catalog id (a Cursor kebab-case slug, and the like) 
 | `usecase-definer` | P1, per UC (∥ across UCs) | the goal's `GOAL.md`, actors, glossary, a neighboring UC directory, existing BRs; which UC(s) to write | 🙋 human gate |
 | `requirement-definer` | P1, per active UC (∥ across UCs) | the UC directory, the reserved REQ IDs, glossary, existing BRs, vision (for intent) | 🙋 human gate |
 | `skeleton-runner` | P2 (only when high-risk) | target subsystem, the single riskiest path, reference structure | 🔬 probe (throwaway) |
-| `db-designer` | P3 | the UC directories, the BRs enforced at the DB, glossary, **the schema source path** (host `CLAUDE.md` / `traceconfig.json` `schema.files`), framework DB rules path (if any) | 🙋 human gate |
+| `db-designer` | P3 | the UC directories, the BRs enforced at the DB, glossary, **the schema source path** (host `CLAUDE.md` / `AGENTS.md` / `traceconfig.json` `schema.files`), framework DB rules path (if any) | 🙋 human gate |
 | `contract-author` | P3 | the active UC directory, settled DB, **shared-vocabulary paths** (`_shared/components.yaml`, existing contracts) | 🤖 machine loop |
 | `structure-oracle` | after P3 | the artifacts to judge (on re-judgment: previous findings + changed artifacts) | 🔴 independent judgment |
 | `test-designer` | P4, before implementation | the UC directory (UC, REQs, contract), the BRs, **assigned track = `backend logic`**, framework testing-rules paths (BE bundle) | 🤖 ×1 (BE only; also writes each REQ's `## 検証方針`) |
@@ -319,7 +326,7 @@ Every subagent returns by stopping and reporting. **The single branching criteri
 | `UC.md` draft + reserved REQ IDs + `?` cells / BR候補 | usecase-definer | 🙋 present → `active` on approval → launch requirement-definer on the reserved IDs / relaunch on change requests. A `?` cell is a hole: settle it with the human before approval |
 | REQ / BR drafts + points to confirm | requirement-definer | 🙋 present → `active` on approval / relaunch on change requests. A BR that binds already-active UCs → re-verify those UCs' consistency (§4 rework) |
 | draft + guarantee-point proposals + points to confirm (DB design) | db-designer | 🙋 present → settled on approval / relaunch on change requests. An approved guarantee point → `adr-writer` (and `requirement-definer` if a BR's `enforced_at` changes) |
-| no schema source declared | db-designer | 🙋 ask the human where the native schema lives (never accept a docs draft as the answer); record it in the host `CLAUDE.md` / `traceconfig.json` |
+| no schema source declared | db-designer | 🙋 ask the human where the native schema lives (never accept a docs draft as the answer); record it in the host `CLAUDE.md` / `AGENTS.md` / `traceconfig.json` |
 | appearance + request to confirm | frontend-ui-implementer | 🙋 present → settled on approval / re-implement on change requests |
 | cannot settle the contract (caused by a defect in the UC, a REQ, a BR, or the DB) | contract-author | 🙋 send back to the causing human oracle → re-derive the contract after approval |
 | a contract addendum (derivable from the approved SSOT + DB) | contract-author | 🤖 relaunch to fill it in, then structure-oracle re-judges |
@@ -352,7 +359,7 @@ Rules (leaves) are never inlined; **passing paths** in the Task input is authori
 ### 6-A. Assembling a bundle (procedure)
 
 1. Enumerate the leaves **directly under** `rules/<scene>/` (scene-wide rules, independent of framework). **Never drop them, regardless of whether the framework could be identified.**
-2. Identify the target platform and framework (from the declaration in the host project's `CLAUDE.md`, or failing that from paths, extensions, and dependencies) and enumerate `rules/<scene>/<platform>/<framework>/` **recursively**. If it does not exist, pass no framework-specific rules (do not fabricate what is not there).
+2. Identify the target platform and framework (from the declaration in the host project's `CLAUDE.md` or `AGENTS.md`, or failing that from paths, extensions, and dependencies) and enumerate `rules/<scene>/<platform>/<framework>/` **recursively**. If it does not exist, pass no framework-specific rules (do not fabricate what is not there).
 3. Read **only the `paths:` frontmatter** of each leaf (never open the body).
 4. For each producer, list **the paths of the files that producer will create or edit in this launch**.
 5. Pass that producer **every** leaf whose `paths:` matches any of the paths from step 4 (see 6-B).

@@ -1,0 +1,8 @@
+{
+  "_comment": "Codex catalog pins for generated .codex/agents/*.toml. This is the only place in the harness that holds GPT catalog IDs (ADR-0022). When OpenAI retires a slug, edit this file and run ./init.sh codex. Do not copy these values into .claude/agents/*.md or into a skill body.",
+  "latest_model": "gpt-6-astra",
+  "lite_model": "gpt-5.6-luna",
+  "latest_effort": "high",
+  "lite_effort": "medium",
+  "latest_agents": ["slice-reviewer"]
+}

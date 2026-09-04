@@ -12,10 +12,11 @@ The full text of the philosophy, the directory map, and the setup procedure is i
 ## 0. What you must never do in this repository
 
 - **Never break zero-residency.** Never revive an `index.md` or a catalog table of contents — and never commit a docs index or ledger either (`trace-check --index` generates it on demand). Never add automatic injection to `settings.json` (currently `{}`).
-- **Never write project-specific deviations here.** The shared harness holds only what is generic. Facts about a particular engagement go in the host project's `CLAUDE.md`.
+- **Never write project-specific deviations here.** The shared harness holds only what is generic. Facts about a particular engagement go in the host project's `CLAUDE.md` (or `AGENTS.md` on a Codex host).
 - **Never duplicate the same knowledge.** A format has exactly one SSOT (a rules leaf, a template under `templates/`, or the agent body being generated). Never copy craft or format into a skill. The format of a docs artifact is authoritative in the template, and spec-lint derives its required items from the template (never restate the format on the lint side).
 - **Never hand-edit `.cursor/`.** The Cursor projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh cursor` (or `.claude/tools/cursor-sync/sync.sh`).
 - **Never hand-edit `.grok/agents/`.** The Grok Build projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh grok` (or `.claude/tools/grok-sync/sync.sh`).
+- **Never hand-edit `.agents/` or `.codex/agents/`.** The Codex projection is generated output. To fix something, fix `.claude/` and regenerate with `./init.sh codex` (or `.claude/tools/codex-sync/sync.sh`). This repository's `AGENTS.md` is a Codex entry that points here; it is not a second copy of this file (ADR-0021). Codex catalog IDs live only in `.claude/tools/codex-sync/models.json`; when the catalog moves, edit that file and regenerate (ADR-0022).
 
 ---
 
@@ -45,7 +46,7 @@ The full text of the philosophy, the directory map, and the setup procedure is i
 | A specialist subagent's persona and craft (the judgment rules for how to write) | `agents/<key>/<name>.md` | only when the orchestrator launches it as a Task |
 | The scaffold for a docs artifact (the format's SSOT; spec-lint derives required items from it) | `templates/<key>/<name>.(md\|yaml)` | when a producer Reads it as a scaffold |
 | An executable asset (lint, projection scripts) | `tools/<name>/` | when a producer / init invokes it directly |
-| The installation, updating, the Cursor / Grok projection | `init.sh` at the root | when a human runs it explicitly |
+| The installation, updating, the Cursor / Grok / Codex projection | `init.sh` at the root | when a human runs it explicitly |
 
 **The skill hierarchy constraint:** Claude Code only explores the single level `skills/<name>/SKILL.md`. Never nest them.
 
@@ -105,7 +106,7 @@ paths:
 
 ```yaml
 ---
-name: <unique-name>          # also the identifier in the Cursor projection
+name: <unique-name>          # also the identifier in the Cursor / Grok / Codex projections
 description: <one sentence that makes the launch condition clear>
 tools: Read, Write, ...      # the minimum needed. Lean read-only for oracles
 model: opus | inherit        # the default hint for Claude Code. Follow the assignment rule below.
@@ -125,7 +126,7 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | The completion-gate reviewer | `slice-reviewer` | `opus` | the **fable** family when offered; inherit forbidden; if that family is missing, stop and tell the human (ADR-0020) | A false finding becomes a wrong implementation; an empty list is the definition of done |
 | The deterministic zone (a machine oracle exists) | the 3 implementation producers / skeleton-runner / committer | `inherit` | lighter, or `inherit`, is fine | Tests and builds decide pass/fail, so the model makes little difference to final quality |
 
-> **Never hardcode a versioned catalog id (a Cursor kebab-case slug, and the like) into the harness.** The shared harness would then constrain the host's budget and model catalog (§0). A family name used as a launch-time selection criterion (`fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch. In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default.
+> **Never hardcode a versioned catalog id into `.claude/agents/*.md` or a skill body.** Cursor kebab-case slugs and GPT slugs scattered there would constrain every host (§0). A family name used as a launch-time selection criterion (`fable`) is not that pin: the orchestrator still chooses from the candidates the Task tool offers at that launch. In Cursor the projection becomes `inherit`, so **the orchestrator picks per Task launch, by zone and by the task's nature** (the script is authoritative in develop skill §5). In Claude Code, the agent frontmatter's `opus` / `inherit` acts as the default. **The Codex exception** is `.claude/tools/codex-sync/models.json` (ADR-0022): generated `.codex/agents/*.toml` pins `model` / `model_reasoning_effort` from that file. Update the JSON when the catalog moves, then `./init.sh codex`. Do not copy those IDs into agent markdown.
 
 ---
 
@@ -134,14 +135,17 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 1. **Identify the SSOT for what you are changing** (a rules leaf / a skill / an agent body / tools / `init.sh` / `README.md`).
 2. **Check no duplication arises** (is the same format scattered across a skill, an agent, and rules?).
 3. After the change, visually confirm the related README sections, comments, and reference paths from other agents are not broken.
-4. If you touched the Cursor or Grok integration, or changed rules / skills / agents, regenerate the projection for the host or for verification:
+4. If you touched the Cursor, Grok, or Codex integration, or changed rules / skills / agents, regenerate the projection for the host or for verification:
    ```bash
    ./init.sh cursor .
    ./init.sh grok .
+   ./init.sh codex .
    # or
    .claude/tools/cursor-sync/sync.sh .claude .cursor
    .claude/tools/grok-sync/sync.sh .claude .grok
+   .claude/tools/codex-sync/sync.sh .claude .
    ```
+   If the Codex catalog moved, edit `.claude/tools/codex-sync/models.json` first, then regenerate.
 5. **When the change rests on a judgment that will be questioned later, record an ADR** in `docs/adr/ADR-nnnn-<slug>.md` (the format is authoritative in `templates/develop/ADR.md`; `adr-writer` lands it; `spec-lint validate` checks it even in this repository).
    **Take the number from `node .claude/tools/trace-check/trace-check.mjs --next adr`, never by eyeballing `ls docs/adr`.** Reading the directory and adding one is exactly what collides when two sessions write an ADR at the same time — and they do. `--next` reserves the number as it hands it out; `--only C12` catches a collision that slipped through. This repository carries its own `traceconfig.json` (docs only, no source or tests) so both work here. This applies to the harness's own decisions, not only a host project's — a format replaced, an option deliberately rejected, a dependency deliberately refused. CLAUDE.md holds "how we do it now"; the ADR holds "why, and what we turned down".
 6. For a change that does not break submodule users, cut a **`v*` release tag** where appropriate (`init.sh update` follows tags). **A breaking change** (one that makes an existing host's `spec-lint validate` fail until it migrates) says so in the tag annotation, along with the migration command.
@@ -154,14 +158,15 @@ model: opus | inherit        # the default hint for Claude Code. Follow the assi
 | --- | --- |
 | A rules leaf | Is `paths:` present? Is the glob valid? Is it one concern? |
 | A skill | Does the description work as a launch trigger? Does it instruct the orchestrator not to write code itself? Does every status transition (`active` / `fixed` / `phase:`) stay with the orchestrator? |
-| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no versioned catalog id; slice-reviewer's Cursor pick is the fable family, ADR-0020)? |
+| An agent | Is producer ≠ oracle separated? Are the input and output contracts explicit? Does `model:` follow the §3.3 assignment rule (no versioned catalog id in agent markdown; slice-reviewer's Cursor pick is the fable family, ADR-0020; Codex pins live only in `codex-sync/models.json`, ADR-0022)? |
 | cursor-sync | `paths`→`globs`, `alwaysApply: false`, `model: inherit`, the GENERATED marker |
 | grok-sync | flatten `agents/**/*.md` → `.grok/agents/<name>.md` by frontmatter `name:`, drop `model:`, the GENERATED marker; do not copy skills or rules |
+| codex-sync | skills → `.agents/skills/` (keep `.claude/` paths); flatten `agents/**/*.md` → `.codex/agents/<name>.toml`; `model` / `model_reasoning_effort` from `models.json` (`latest_agents` vs lite); do not copy rules; do not install a router `AGENTS.md` (ADR-0021, ADR-0022) |
 | templates | One artifact, one template? Are the placeholders unified as `UC-000`-style IDs / `YYYY-MM-DD` / `<...>`? Is an optional frontmatter key marked `# optional`? Is spec-lint's derivation (required keys, required sections, required `x-` keys) unbroken? |
 | spec-lint | Does it follow `.claude/tools/spec-lint/README.md`'s usage, and can a producer invoke it directly? Required keys and sections are derived from the templates and never restated on the lint side. **The closed vocabularies are the deliberate exception**: `status` / `phase` / `pattern` / `transport` / `direction` live in the lint, because only executable code can enforce them — a template's comment documents them and is not a second authority. Format and lifecycle only — traceability is trace-check's. Does the baseline ratchet keep trace-check's semantics (only new errors fail; `--update-baseline` records the whole present state; `gate` never consults it)? Does `convert` preserve the shape and leave every judgment as a `# convert:` note instead of deciding? |
 | trace-check | Does it stay traceability-only (C1–C14: coverage, `@covers` / `@implements` resolution, placement ↔ frontmatter, dead rules, numbering) and never re-check format? Does `--only` let a producer self-check its own concern? Does the baseline ratchet stay monotone (`--update-baseline` only shrinks)? Is `--next` the only numbering path agents use? |
 | gate-hook | Never made permanent (installation is the host's `settings.local.json`, optional). Does it leave docs, `.claude`, and `traceconfig.json` unblocked? Does it read the gate state from `UC.md`'s `phase:` (no ledger file)? Does the block reason point at develop skill §2's return point? |
-| init.sh | Do the help for install / update / cursor / grok and the README agree? |
+| init.sh | Do the help for install / update / cursor / grok / codex and the README agree? |
 
 Application-level business tests are not this repository's primary target. **Consistency of the wiring, zero residency, and the alignment of the three trees** are the axes of quality.
 
@@ -175,5 +180,5 @@ Application-level business tests are not this repository's primary target. **Con
    - Changing a procedure → the relevant `skills/<key>/SKILL.md`
    - Changing craft or a format → the relevant `agents/<key>/*.md`
    - Changing a framework's rules → the relevant `rules/.../*.md`
-   - Changing the projection → `.claude/tools/cursor-sync/sync.sh` / `.claude/tools/grok-sync/sync.sh`
+   - Changing the projection → `.claude/tools/cursor-sync/sync.sh` / `.claude/tools/grok-sync/sync.sh` / `.claude/tools/codex-sync/sync.sh`
    - Changing installation → `init.sh`
